@@ -285,6 +285,67 @@ jobs:
           }
         shell: pwsh
 
+  test-custom-config-name:
+    runs-on: windows-latest
+    name: Test Custom Config Filename
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install firebase-admin requests
+        shell: pwsh
+
+      - name: Setup Firebase Emulator (Custom Config Name)
+        uses: ./
+        with:
+          project-id: "demo-project"
+          emulators: "auth,firestore"
+          working-directory: "./tests/custom-config-name"
+          firebase-config-path: "firebase.custom.json"
+          wait-time: "60"
+
+      - name: Run Tests
+        run: |
+          Write-Host "Testing with custom config filename..." -ForegroundColor Cyan
+          cd tests/custom-config-name
+          python test_emulators.py
+
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "[SUCCESS] Custom config name test passed!" -ForegroundColor Green
+          } else {
+            Write-Host "[FAILED] Custom config name test failed!" -ForegroundColor Red
+            exit 1
+          }
+        shell: pwsh
+
+      - name: Cleanup Firebase Emulators
+        if: always()
+        run: |
+          $service = Get-Service -Name FirebaseEmulator -ErrorAction SilentlyContinue
+          if ($service) {
+            nssm stop FirebaseEmulator
+            nssm remove FirebaseEmulator confirm
+            Write-Host "[OK] Service stopped and removed" -ForegroundColor Green
+          }
+        shell: pwsh
+
+      - name: Upload Emulator Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: emulator-logs-custom-config
+          path: |
+            tests/custom-config-name/emulator-*.log
+
   test-no-cache:
     runs-on: windows-latest
     name: Test without Caching

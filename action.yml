@@ -33,7 +33,7 @@ inputs:
     default: "demo-project"
 
   firebase-config-path:
-    description: "Path to firebase.json configuration file (relative to working-directory)"
+    description: "Path to firebase.json (absolute, workspace-relative with ./ prefix, or working-directory-relative)"
     required: false
     default: "./firebase.json"
 
@@ -160,7 +160,7 @@ runs:
       run: |
         $workDir = "${{ inputs.working-directory }}"
         $functionsPath = Join-Path $workDir "functions\package.json"
-        
+
         if (Test-Path $functionsPath) {
           Write-Host "Installing Firebase Functions dependencies..." -ForegroundColor Cyan
           cd (Join-Path $workDir "functions")
@@ -225,7 +225,7 @@ runs:
           $workingDir = Join-Path $PWD.Path $workingDir
         }
         $workingDir = $workingDir -replace '\\$', ''  # Remove trailing slash
-        
+
         if (-not (Test-Path $workingDir)) {
           Write-Error "Working directory not found: $workingDir"
           exit 1
@@ -242,13 +242,13 @@ runs:
 
         # Build emulator command arguments
         $argList = @("emulators:start", "--project=$projectId")
-        
+
         # Add --config if using non-default firebase.json path
         if ($configPath -ne "./firebase.json") {
           $argList += "--config=$configPath"
           Write-Host "Using custom config: $configPath" -ForegroundColor Cyan
         }
-        
+
         if ($emulatorsInput) {
           $argList += "--only"
           $argList += $emulatorsInput
@@ -304,9 +304,23 @@ runs:
         Write-Host ""
 
         # Get Hub port from firebase.json (default 4400)
-        $configPath = Join-Path "${{ inputs.working-directory }}" "${{ inputs.firebase-config-path }}"
+        # Handle config path resolution: absolute, workspace-relative (./ prefix), or working-directory-relative
+        $configPath = "${{ inputs.firebase-config-path }}"
+        if (-not [System.IO.Path]::IsPathRooted($configPath)) {
+          if ($configPath.StartsWith("./") -or $configPath.StartsWith(".\")) {
+            # Workspace-relative path (starts with ./)
+            $configPath = Join-Path $PWD.Path $configPath
+          } else {
+            # Working-directory-relative path
+            $workDir = "${{ inputs.working-directory }}"
+            if (-not [System.IO.Path]::IsPathRooted($workDir)) {
+              $workDir = Join-Path $PWD.Path $workDir
+            }
+            $configPath = Join-Path $workDir $configPath
+          }
+        }
         $hubPort = 4400
-        
+
         if (Test-Path $configPath) {
           $config = Get-Content $configPath | ConvertFrom-Json
           if ($config.emulators.hub) {

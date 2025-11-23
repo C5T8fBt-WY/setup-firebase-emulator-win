@@ -115,17 +115,25 @@ This will look for `firebase.json`, `firestore.rules`, `storage.rules`, and the 
 
 ### Custom Firebase Configuration Path
 
-For a custom `firebase.json` filename in a specific directory:
+For a custom `firebase.json` filename:
 
 ```yaml
 steps:
   - uses: actions/checkout@v4
 
+  # Option 1: Custom filename in working directory
   - name: Setup Firebase Emulator
     uses: C5T8fBt-WY/setup-firebase-emulator-win@v1
     with:
       working-directory: './config'
-      firebase-config-path: './config/firebase.custom.json'
+      firebase-config-path: 'firebase.custom.json'  # Relative to working-directory
+      project-id: 'my-project'
+
+  # Option 2: Workspace-relative path (use ./ prefix)
+  - name: Setup Firebase Emulator
+    uses: C5T8fBt-WY/setup-firebase-emulator-win@v1
+    with:
+      firebase-config-path: './config/firebase.custom.json'  # Relative to workspace root
       project-id: 'my-project'
 ```
 
@@ -184,7 +192,7 @@ os.environ['FIREBASE_STORAGE_EMULATOR_HOST'] = '127.0.0.1:9299'
 | `java-version`           | Java version to setup (Temurin). Set to `none` to skip.                                      | No       | `17`              |
 | `enable-cache`           | Enable caching for firebase-tools installation                                               | No       | `true`            |
 | `project-id`             | Firebase project ID for emulator                                                             | No       | `demo-project`    |
-| `firebase-config-path`   | Path to firebase.json configuration file (relative to workspace root or working directory)   | No       | `./firebase.json` |
+| `firebase-config-path`   | Path to firebase.json (absolute, workspace-relative with `./`, or working-directory-relative) | No       | `./firebase.json` |
 | `working-directory`      | Working directory containing firebase.json and related files (rules, functions/, etc.)       | No       | `.`               |
 | `emulators`              | Comma-separated list of emulators (e.g., `auth,firestore`). Empty = all from `firebase.json` | No       | `""` (all)        |
 | `wait-time`              | Seconds to wait after starting service before health checks                                  | No       | `60`              |
