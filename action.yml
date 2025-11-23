@@ -32,6 +32,11 @@ inputs:
     required: false
     default: "demo-project"
 
+  firebase-config-path:
+    description: "Path to firebase.json configuration file (relative to workspace root)"
+    required: false
+    default: "./firebase.json"
+
   emulators:
     description: "Comma-separated list of emulators to start (e.g., auth,firestore,storage,functions). If empty, starts all configured in firebase.json"
     required: false
@@ -270,9 +275,10 @@ runs:
         Write-Host ""
 
         # Parse firebase.json to get ports
-        $configPath = "firebase.json"
+        $configPath = "${{ inputs.firebase-config-path }}"
+        Write-Host "Looking for Firebase config at: $configPath" -ForegroundColor Gray
         if (-not (Test-Path $configPath)) {
-          Write-Host "[WARN] firebase.json not found, using default ports" -ForegroundColor Yellow
+          Write-Host "[WARN] firebase.json not found at $configPath, using default ports" -ForegroundColor Yellow
           $emulators = @(
             @{Name="Auth"; Port=9099},
             @{Name="Firestore"; Port=8080},
