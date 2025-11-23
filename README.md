@@ -96,9 +96,9 @@ steps:
       project-id: 'demo-project'
 ```
 
-### Custom Firebase Configuration Path
+### Custom Working Directory
 
-If your `firebase.json` is in a custom location:
+If your Firebase configuration files are in a subdirectory:
 
 ```yaml
 steps:
@@ -107,7 +107,25 @@ steps:
   - name: Setup Firebase Emulator
     uses: C5T8fBt-WY/setup-firebase-emulator-win@v1
     with:
-      firebase-config-path: './config/firebase.json'
+      working-directory: './my-firebase-app'
+      project-id: 'my-project'
+```
+
+This will look for `firebase.json`, `firestore.rules`, `storage.rules`, and the `functions/` directory inside `./my-firebase-app/`.
+
+### Custom Firebase Configuration Path
+
+For a custom `firebase.json` filename in a specific directory:
+
+```yaml
+steps:
+  - uses: actions/checkout@v4
+
+  - name: Setup Firebase Emulator
+    uses: C5T8fBt-WY/setup-firebase-emulator-win@v1
+    with:
+      working-directory: './config'
+      firebase-config-path: './config/firebase.custom.json'
       project-id: 'my-project'
 ```
 
@@ -166,7 +184,8 @@ os.environ['FIREBASE_STORAGE_EMULATOR_HOST'] = '127.0.0.1:9299'
 | `java-version`           | Java version to setup (Temurin). Set to `none` to skip.                                      | No       | `17`              |
 | `enable-cache`           | Enable caching for firebase-tools installation                                               | No       | `true`            |
 | `project-id`             | Firebase project ID for emulator                                                             | No       | `demo-project`    |
-| `firebase-config-path`   | Path to firebase.json configuration file (relative to workspace root)                        | No       | `./firebase.json` |
+| `firebase-config-path`   | Path to firebase.json configuration file (relative to workspace root or working directory)   | No       | `./firebase.json` |
+| `working-directory`      | Working directory containing firebase.json and related files (rules, functions/, etc.)       | No       | `.`               |
 | `emulators`              | Comma-separated list of emulators (e.g., `auth,firestore`). Empty = all from `firebase.json` | No       | `""` (all)        |
 | `wait-time`              | Seconds to wait after starting service before health checks                                  | No       | `60`              |
 | `skip-health-check`      | Skip health check verification (not recommended)                                             | No       | `false`           |

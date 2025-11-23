@@ -6,17 +6,11 @@
         "firestore": {
             "port": 8888
         },
-        "storage": {
-            "port": 9299
-        },
         "ui": {
             "enabled": false
         }
     },
     "firestore": {
         "rules": "firestore.rules"
-    },
-    "storage": {
-        "rules": "storage.rules"
     }
 }

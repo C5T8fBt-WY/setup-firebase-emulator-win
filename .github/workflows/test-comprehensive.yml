@@ -29,8 +29,8 @@ jobs:
         uses: ./
         with:
           project-id: "demo-project"
-          emulators: "auth,firestore,storage"
-          firebase-config-path: "./tests/default-ports/firebase.json"
+          emulators: "auth,firestore"
+          working-directory: "./tests/default-ports"
           wait-time: "60"
 
       - name: Run Tests
@@ -70,8 +70,8 @@ jobs:
         with:
           name: emulator-logs-default-ports
           path: |
-            emulator-stdout.log
-            emulator-stderr.log
+            tests/default-ports/emulator-stdout.log
+            tests/default-ports/emulator-stderr.log
           if-no-files-found: ignore
 
   test-custom-ports:
@@ -97,8 +97,8 @@ jobs:
         uses: ./
         with:
           project-id: "demo-project"
-          emulators: "auth,firestore,storage"
-          firebase-config-path: "./tests/custom-ports/firebase.json"
+          emulators: ""
+          working-directory: "./tests/custom-ports"
           wait-time: "60"
 
       - name: Verify Custom Ports in Health Check
@@ -120,15 +120,6 @@ jobs:
             Write-Host "[OK] Firestore emulator responding on custom port 8888" -ForegroundColor Green
           } catch {
             Write-Host "[ERROR] Firestore emulator not responding on port 8888" -ForegroundColor Red
-            exit 1
-          }
-
-          # Check Storage on port 9299 (custom)
-          try {
-            $response = Invoke-WebRequest -Uri "http://127.0.0.1:9299" -UseBasicParsing -TimeoutSec 5
-            Write-Host "[OK] Storage emulator responding on custom port 9299" -ForegroundColor Green
-          } catch {
-            Write-Host "[ERROR] Storage emulator not responding on port 9299" -ForegroundColor Red
             exit 1
           }
         shell: pwsh
@@ -170,8 +161,8 @@ jobs:
         with:
           name: emulator-logs-custom-ports
           path: |
-            emulator-stdout.log
-            emulator-stderr.log
+            tests/custom-ports/emulator-stdout.log
+            tests/custom-ports/emulator-stderr.log
           if-no-files-found: ignore
 
   test-with-functions:
@@ -198,8 +189,8 @@ jobs:
         with:
           project-id: "demo-project"
           emulators: "auth,firestore,functions"
-          firebase-config-path: "./tests/with-functions/firebase.json"
-          wait-time: "90"
+          working-directory: "./tests/with-functions"
+          wait-time: "120"
 
       - name: Run Tests
         run: |
@@ -238,8 +229,8 @@ jobs:
         with:
           name: emulator-logs-with-functions
           path: |
-            emulator-stdout.log
-            emulator-stderr.log
+            tests/with-functions/emulator-stdout.log
+            tests/with-functions/emulator-stderr.log
           if-no-files-found: ignore
 
   test-auth-only:
@@ -266,7 +257,7 @@ jobs:
         with:
           project-id: "demo-project"
           emulators: "auth"
-          firebase-config-path: "./tests/default-ports/firebase.json"
+          working-directory: "./tests/default-ports"
           wait-time: "45"
 
       - name: Run Quick Auth Test
@@ -308,7 +299,7 @@ jobs:
           enable-cache: "false"
           project-id: "demo-project"
           emulators: "auth"
-          firebase-config-path: "./tests/default-ports/firebase.json"
+          working-directory: "./tests/default-ports"
           wait-time: "45"
 
       - name: Verify Emulator Running

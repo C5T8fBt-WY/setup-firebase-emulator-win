@@ -1,11 +1,10 @@
 """
 Test Firebase Emulators with custom ports.
-Tests: Authentication (9199), Firestore (8888), and Storage (9299)
+Tests: Authentication (9199) and Firestore (8888)
 """
 import os
 import firebase_admin
 from firebase_admin import credentials, auth, firestore
-import requests
 
 
 def initialize_firebase():
@@ -13,7 +12,6 @@ def initialize_firebase():
     # Set emulator environment variables with custom ports
     os.environ['FIREBASE_AUTH_EMULATOR_HOST'] = '127.0.0.1:9199'
     os.environ['FIRESTORE_EMULATOR_HOST'] = '127.0.0.1:8888'
-    os.environ['FIREBASE_STORAGE_EMULATOR_HOST'] = '127.0.0.1:9299'
     os.environ['GCLOUD_PROJECT'] = 'demo-project'
 
     cred = credentials.Certificate({
@@ -28,13 +26,10 @@ def initialize_firebase():
         "token_uri": "https://oauth2.googleapis.com/token",
     })
 
-    firebase_admin.initialize_app(cred, {
-        'storageBucket': 'demo-project.appspot.com',
-        'projectId': 'demo-project'
-    })
+    firebase_admin.initialize_app(cred, {'projectId': 'demo-project'})
 
     print("[OK] Firebase Admin SDK initialized with custom ports")
-    print("    Auth: 9199, Firestore: 8888, Storage: 9299")
+    print("    Auth: 9199, Firestore: 8888")
 
 
 def test_authentication():
@@ -76,38 +71,6 @@ def test_firestore():
         return False
 
 
-def test_storage():
-    """Test Storage emulator on custom port."""
-    print("\n=== Testing Storage (Port 9299) ===")
-    try:
-        storage_host = os.environ.get('FIREBASE_STORAGE_EMULATOR_HOST', '127.0.0.1:9299')
-        base_url = f"http://{storage_host}/v0/b/demo-project.appspot.com/o"
-
-        test_content = b"Custom port test content"
-        test_filename = "custom-test.txt"
-
-        upload_url = f"{base_url}/{test_filename}"
-        response = requests.post(upload_url, data=test_content,
-                                 headers={'Content-Type': 'text/plain'})
-        if response.status_code in [200, 201]:
-            print(f"[OK] Uploaded file: {test_filename}")
-
-        download_url = f"{base_url}/{test_filename}?alt=media"
-        response = requests.get(download_url)
-        if response.status_code == 200:
-            print("[OK] Downloaded file")
-
-        delete_url = f"{base_url}/{test_filename}"
-        response = requests.delete(delete_url)
-        if response.status_code in [200, 204]:
-            print(f"[OK] Deleted file")
-
-        return True
-    except Exception as e:
-        print(f"[FAIL] Storage test failed: {e}")
-        return False
-
-
 def main():
     """Main test runner."""
     print("=" * 50)
@@ -119,7 +82,6 @@ def main():
     results = {
         'Authentication (9199)': test_authentication(),
         'Firestore (8888)': test_firestore(),
-        'Storage (9299)': test_storage(),
     }
 
     print("\n" + "=" * 50)

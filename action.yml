@@ -33,9 +33,14 @@ inputs:
     default: "demo-project"
 
   firebase-config-path:
-    description: "Path to firebase.json configuration file (relative to workspace root)"
+    description: "Path to firebase.json configuration file (relative to working-directory)"
     required: false
     default: "./firebase.json"
+
+  working-directory:
+    description: "Working directory containing firebase.json and related files (firestore.rules, storage.rules, functions/, etc.)"
+    required: false
+    default: "."
 
   emulators:
     description: "Comma-separated list of emulators to start (e.g., auth,firestore,storage,functions). If empty, starts all configured in firebase.json"
@@ -153,13 +158,16 @@ runs:
     - name: Install Firebase Functions dependencies
       shell: pwsh
       run: |
-        if (Test-Path "functions/package.json") {
+        $workDir = "${{ inputs.working-directory }}"
+        $functionsPath = Join-Path $workDir "functions\package.json"
+        
+        if (Test-Path $functionsPath) {
           Write-Host "Installing Firebase Functions dependencies..." -ForegroundColor Cyan
-          cd functions
+          cd (Join-Path $workDir "functions")
           npm install
           Write-Host "[OK] Functions dependencies installed" -ForegroundColor Green
         } else {
-          Write-Host "[INFO] No functions/package.json found, skipping..." -ForegroundColor Yellow
+          Write-Host "[INFO] No functions/package.json found in working directory, skipping..." -ForegroundColor Yellow
         }
 
     - name: Install NSSM
@@ -211,18 +219,39 @@ runs:
           exit 1
         }
 
-        $workDir = $PWD.Path
+        # Resolve working directory (absolute path)
+        $workingDir = "${{ inputs.working-directory }}"
+        if (-not [System.IO.Path]::IsPathRooted($workingDir)) {
+          $workingDir = Join-Path $PWD.Path $workingDir
+        }
+        $workingDir = $workingDir -replace '\\$', ''  # Remove trailing slash
+        
+        if (-not (Test-Path $workingDir)) {
+          Write-Error "Working directory not found: $workingDir"
+          exit 1
+        }
+
         $projectId = "${{ inputs.project-id }}"
         $emulatorsInput = "${{ inputs.emulators }}"
+        $configPath = "${{ inputs.firebase-config-path }}"
 
         Write-Host "Firebase binary: $firebaseBin" -ForegroundColor Gray
-        Write-Host "Working directory: $workDir" -ForegroundColor Gray
+        Write-Host "Working directory: $workingDir" -ForegroundColor Gray
+        Write-Host "Firebase config: $configPath" -ForegroundColor Gray
         Write-Host "Project ID: $projectId" -ForegroundColor Cyan
 
         # Build emulator command arguments
-        $args = "emulators:start --project=$projectId"
+        $argList = @("emulators:start", "--project=$projectId")
+        
+        # Add --config if using non-default firebase.json path
+        if ($configPath -ne "./firebase.json") {
+          $argList += "--config=$configPath"
+          Write-Host "Using custom config: $configPath" -ForegroundColor Cyan
+        }
+        
         if ($emulatorsInput) {
-          $args += " --only $emulatorsInput"
+          $argList += "--only"
+          $argList += $emulatorsInput
           Write-Host "Starting specific emulators: $emulatorsInput" -ForegroundColor Cyan
         } else {
           Write-Host "Starting all configured emulators" -ForegroundColor Cyan
@@ -230,10 +259,10 @@ runs:
         Write-Host ""
 
         # Install and configure Windows service
-        nssm install FirebaseEmulator $nodePath $firebaseBin $args.Split(' ')
-        nssm set FirebaseEmulator AppDirectory $workDir
-        nssm set FirebaseEmulator AppStdout "$workDir\emulator-stdout.log"
-        nssm set FirebaseEmulator AppStderr "$workDir\emulator-stderr.log"
+        nssm install FirebaseEmulator $nodePath $firebaseBin $argList
+        nssm set FirebaseEmulator AppDirectory $workingDir
+        nssm set FirebaseEmulator AppStdout "$workingDir\emulator-stdout.log"
+        nssm set FirebaseEmulator AppStderr "$workingDir\emulator-stderr.log"
 
         # Start the service
         Write-Host "Starting service..." -ForegroundColor Yellow
@@ -270,78 +299,82 @@ runs:
       shell: pwsh
       run: |
         Write-Host "======================================" -ForegroundColor Cyan
-        Write-Host "Emulator Health Check" -ForegroundColor Cyan
+        Write-Host "Emulator Health Check (via Hub)" -ForegroundColor Cyan
         Write-Host "======================================" -ForegroundColor Cyan
         Write-Host ""
 
-        # Parse firebase.json to get ports
-        $configPath = "${{ inputs.firebase-config-path }}"
-        Write-Host "Looking for Firebase config at: $configPath" -ForegroundColor Gray
-        if (-not (Test-Path $configPath)) {
-          Write-Host "[WARN] firebase.json not found at $configPath, using default ports" -ForegroundColor Yellow
-          $emulators = @(
-            @{Name="Auth"; Port=9099},
-            @{Name="Firestore"; Port=8080},
-            @{Name="Storage"; Port=9199},
-            @{Name="Functions"; Port=5001}
-          )
-        } else {
+        # Get Hub port from firebase.json (default 4400)
+        $configPath = Join-Path "${{ inputs.working-directory }}" "${{ inputs.firebase-config-path }}"
+        $hubPort = 4400
+        
+        if (Test-Path $configPath) {
           $config = Get-Content $configPath | ConvertFrom-Json
-          $emulators = @()
-          
-          if ($config.emulators.auth) { $emulators += @{Name="Auth"; Port=$config.emulators.auth.port} }
-          if ($config.emulators.firestore) { $emulators += @{Name="Firestore"; Port=$config.emulators.firestore.port} }
-          if ($config.emulators.storage) { $emulators += @{Name="Storage"; Port=$config.emulators.storage.port} }
-          if ($config.emulators.functions) { $emulators += @{Name="Functions"; Port=$config.emulators.functions.port} }
-          if ($config.emulators.hosting) { $emulators += @{Name="Hosting"; Port=$config.emulators.hosting.port} }
-          if ($config.emulators.pubsub) { $emulators += @{Name="Pubsub"; Port=$config.emulators.pubsub.port} }
-          if ($config.emulators.database) { $emulators += @{Name="Database"; Port=$config.emulators.database.port} }
-        }
-
-        $results = @()
-        foreach ($emu in $emulators) {
-          Write-Host "Testing $($emu.Name) on port $($emu.Port)..." -ForegroundColor Yellow
-          
-          # Test port listening
-          $portOpen = Test-NetConnection -ComputerName 127.0.0.1 -Port $emu.Port -InformationLevel Quiet -WarningAction SilentlyContinue
-          Write-Host "  Port $($emu.Port) listening: $portOpen" -ForegroundColor $(if ($portOpen) { 'Green' } else { 'Red' })
-          
-          # Test HTTP response
-          $httpWorks = $false
-          $statusCode = "N/A"
-          try {
-            $response = Invoke-WebRequest -Uri "http://127.0.0.1:$($emu.Port)" -TimeoutSec 3 -UseBasicParsing -ErrorAction Stop
-            $httpWorks = $true
-            $statusCode = $response.StatusCode
-            Write-Host "  HTTP request: SUCCESS (Status: $statusCode)" -ForegroundColor Green
-          } catch {
-            Write-Host "  HTTP request: FAILED" -ForegroundColor Red
+          if ($config.emulators.hub) {
+            $hubPort = $config.emulators.hub.port
           }
-          
-          $results += [PSCustomObject]@{
-            Name = $emu.Name
-            Port = $emu.Port
-            PortOpen = $portOpen
-            HttpWorks = $httpWorks
-            StatusCode = $statusCode
-          }
-          Write-Host ""
-        }
-
-        # Summary
-        Write-Host "======================================" -ForegroundColor Cyan
-        Write-Host "Summary" -ForegroundColor Cyan
-        Write-Host "======================================" -ForegroundColor Cyan
-        $results | Format-Table -AutoSize
-
-        $allHealthy = ($results | Where-Object { $_.PortOpen }).Count -eq $results.Count
-        if ($allHealthy) {
-          Write-Host "[SUCCESS] All emulators are healthy!" -ForegroundColor Green
+          Write-Host "Using firebase.json from: $configPath" -ForegroundColor Gray
         } else {
-          Write-Host "[WARNING] Some emulators may not be fully ready" -ForegroundColor Yellow
-          Write-Host "Tests will fail if emulators are actually not working" -ForegroundColor Yellow
+          Write-Host "[WARN] firebase.json not found at $configPath, using default Hub port" -ForegroundColor Yellow
         }
 
-        # Export summary as JSON
-        $summary = $results | ConvertTo-Json -Compress
-        "summary=$summary" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+        Write-Host "Checking Emulator Hub at port $hubPort..." -ForegroundColor Cyan
+        Write-Host ""
+
+        # Query Hub endpoint
+        try {
+          $hubResponse = Invoke-RestMethod -Uri "http://127.0.0.1:$hubPort/emulators" -TimeoutSec 5 -UseBasicParsing
+          Write-Host "[OK] Emulator Hub is responding" -ForegroundColor Green
+          Write-Host ""
+
+          $results = @()
+          foreach ($emulator in $hubResponse.PSObject.Properties) {
+            $name = $emulator.Name
+            $info = $emulator.Value
+            
+            $host = if ($info.host) { $info.host } else { "127.0.0.1" }
+            $port = $info.port
+            
+            Write-Host "$name Emulator:" -ForegroundColor Yellow
+            Write-Host "  Host: $host" -ForegroundColor Gray
+            Write-Host "  Port: $port" -ForegroundColor Gray
+            
+            # Test port connectivity
+            $portOpen = Test-NetConnection -ComputerName $host -Port $port -InformationLevel Quiet -WarningAction SilentlyContinue
+            Write-Host "  Status: $(if ($portOpen) { '[OK] Running' } else { '[WARN] Not accessible' })" -ForegroundColor $(if ($portOpen) { 'Green' } else { 'Yellow' })
+            Write-Host ""
+            
+            $results += [PSCustomObject]@{
+              Name = $name
+              Host = $host
+              Port = $port
+              Running = $portOpen
+            }
+          }
+
+          # Summary
+          Write-Host "======================================" -ForegroundColor Cyan
+          Write-Host "Summary" -ForegroundColor Cyan
+          Write-Host "======================================" -ForegroundColor Cyan
+          $results | Format-Table -AutoSize
+
+          $runningCount = ($results | Where-Object { $_.Running }).Count
+          $totalCount = $results.Count
+          
+          if ($runningCount -eq $totalCount) {
+            Write-Host "[SUCCESS] All $totalCount emulator(s) are running!" -ForegroundColor Green
+          } else {
+            Write-Host "[WARNING] $runningCount/$totalCount emulator(s) accessible" -ForegroundColor Yellow
+          }
+
+          # Export summary as JSON
+          $summary = $results | ConvertTo-Json -Compress
+          "summary=$summary" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+        } catch {
+          Write-Host "[ERROR] Failed to connect to Emulator Hub on port $hubPort" -ForegroundColor Red
+          Write-Host "Error: $_" -ForegroundColor Red
+          Write-Host ""
+          Write-Host "This may indicate emulators failed to start." -ForegroundColor Yellow
+          Write-Host "Check emulator-stdout.log and emulator-stderr.log for details." -ForegroundColor Yellow
+          exit 1
+        }
