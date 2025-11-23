@@ -1,0 +1,183 @@
+name: Test Action
+
+on:
+    workflow_dispatch:
+    push:
+        branches: [main]
+
+jobs:
+    test-basic:
+        runs-on: windows-latest
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Create test firebase.json
+              run: |
+                  $config = @{
+                    emulators = @{
+                      auth = @{ port = 9099 }
+                      firestore = @{ port = 8080 }
+                    }
+                  }
+                  $config | ConvertTo-Json -Depth 10 | Out-File firebase.json -Encoding UTF8
+              shell: pwsh
+
+            - name: Setup Firebase Emulator
+              id: setup
+              uses: ./
+              with:
+                  project-id: "test-project"
+                  emulators: "auth,firestore"
+                  wait-time: "60"
+
+            - name: Display Outputs
+              run: |
+                  Write-Host "Service Status: ${{ steps.setup.outputs.service-status }}" -ForegroundColor Cyan
+                  Write-Host "Health Check Summary: ${{ steps.setup.outputs.health-check-summary }}" -ForegroundColor Cyan
+              shell: pwsh
+
+            - name: Test Auth Emulator
+              run: |
+                  try {
+                    $response = Invoke-WebRequest -Uri "http://127.0.0.1:9099" -UseBasicParsing -TimeoutSec 5
+                    Write-Host "[OK] Auth emulator is responding" -ForegroundColor Green
+                  } catch {
+                    Write-Host "[ERROR] Auth emulator test failed: $_" -ForegroundColor Red
+                    exit 1
+                  }
+              shell: pwsh
+
+            - name: Test Firestore Emulator
+              run: |
+                  try {
+                    $response = Invoke-WebRequest -Uri "http://127.0.0.1:8080" -UseBasicParsing -TimeoutSec 5
+                    Write-Host "[OK] Firestore emulator is responding" -ForegroundColor Green
+                  } catch {
+                    Write-Host "[ERROR] Firestore emulator test failed: $_" -ForegroundColor Red
+                    exit 1
+                  }
+              shell: pwsh
+
+            - name: Cleanup
+              if: always()
+              run: |
+                  nssm stop FirebaseEmulator
+                  nssm remove FirebaseEmulator confirm
+              shell: pwsh
+
+            - name: Upload Logs
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: emulator-logs-basic
+                  path: |
+                      emulator-stdout.log
+                      emulator-stderr.log
+                  if-no-files-found: ignore
+
+    test-with-cache:
+        runs-on: windows-latest
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Create test firebase.json
+              run: |
+                  $config = @{
+                    emulators = @{
+                      auth = @{ port = 9099 }
+                    }
+                  }
+                  $config | ConvertTo-Json -Depth 10 | Out-File firebase.json -Encoding UTF8
+              shell: pwsh
+
+            - name: Setup Firebase Emulator (First Run - No Cache)
+              uses: ./
+              with:
+                  enable-cache: "true"
+                  project-id: "test-cache"
+                  emulators: "auth"
+
+            - name: Cleanup
+              if: always()
+              run: |
+                  nssm stop FirebaseEmulator
+                  nssm remove FirebaseEmulator confirm
+              shell: pwsh
+
+    test-skip-deps:
+        runs-on: windows-latest
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "20"
+
+            - name: Setup Java
+              uses: actions/setup-java@v4
+              with:
+                  distribution: "temurin"
+                  java-version: "17"
+
+            - name: Create test firebase.json
+              run: |
+                  $config = @{
+                    emulators = @{
+                      auth = @{ port = 9099 }
+                    }
+                  }
+                  $config | ConvertTo-Json -Depth 10 | Out-File firebase.json -Encoding UTF8
+              shell: pwsh
+
+            - name: Setup Firebase Emulator (Skip Deps)
+              uses: ./
+              with:
+                  node-version: "none"
+                  java-version: "none"
+                  project-id: "test-skip-deps"
+                  emulators: "auth"
+
+            - name: Cleanup
+              if: always()
+              run: |
+                  nssm stop FirebaseEmulator
+                  nssm remove FirebaseEmulator confirm
+              shell: pwsh
+
+    test-no-cache:
+        runs-on: windows-latest
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Create test firebase.json
+              run: |
+                  $config = @{
+                    emulators = @{
+                      auth = @{ port = 9099 }
+                    }
+                  }
+                  $config | ConvertTo-Json -Depth 10 | Out-File firebase.json -Encoding UTF8
+              shell: pwsh
+
+            - name: Setup Firebase Emulator (No Cache)
+              uses: ./
+              with:
+                  enable-cache: "false"
+                  project-id: "test-no-cache"
+                  emulators: "auth"
+
+            - name: Cleanup
+              if: always()
+              run: |
+                  nssm stop FirebaseEmulator
+                  nssm remove FirebaseEmulator confirm
+              shell: pwsh

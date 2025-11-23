@@ -1,0 +1,355 @@
+# Setup Firebase Emulator (Windows Service)
+
+[![GitHub release](https://img.shields.io/github/v/release/C5T8fBt-WY/setup-firebase-emulator-win)](https://github.com/C5T8fBt-WY/setup-firebase-emulator-win/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+A GitHub Action that sets up the Firebase Emulator Suite as a **background Windows Service** using NSSM (Non-Sucking Service Manager). Specifically designed for **Windows Runners** to provide reliable, persistent emulator execution with automatic dependency management and caching support.
+
+## Features
+
+- **Reliable Service Management**: Uses Windows Service for stable background process execution
+- **Built-in Caching**: Optional caching for `firebase-tools` (~1 minute vs 6+ minutes fresh install)
+- **Automatic Dependency Setup**: Handles Node.js and Java installation automatically
+- **Health Checks**: Comprehensive port and HTTP response verification
+- **Flexible Configuration**: Customize versions, emulators, and wait times
+- **Detailed Diagnostics**: Health check summary with port status table
+
+## Quick Start
+
+### Basic Usage
+
+```yaml
+steps:
+  - uses: actions/checkout@v4
+
+  - name: Setup Firebase Emulator
+    uses: C5T8fBt-WY/setup-firebase-emulator-win@v1
+    with:
+      project-id: 'demo-project'
+      emulators: 'auth,firestore,functions'
+
+  - name: Run Tests
+    run: npm test
+```
+
+### Complete Example
+
+```yaml
+name: Firebase Tests
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Firebase Emulator
+        uses: C5T8fBt-WY/setup-firebase-emulator-win@v1
+        with:
+          firebase-tools-version: '13.24.1'
+          node-version: '20'
+          java-version: '17'
+          enable-cache: 'true'
+          project-id: 'my-project'
+          emulators: 'auth,firestore,storage,functions'
+          wait-time: '60'
+
+      - name: Run Tests
+        run: npm test
+
+      - name: Cleanup
+        if: always()
+        run: |
+          nssm stop FirebaseEmulator
+          nssm remove FirebaseEmulator confirm
+        shell: pwsh
+```
+
+### Using Existing Node.js/Java
+
+If you've already set up Node.js or Java in previous steps:
+
+```yaml
+steps:
+  - uses: actions/checkout@v4
+
+  - name: Setup Node.js
+    uses: actions/setup-node@v4
+    with:
+      node-version: '20'
+
+  - name: Setup Java
+    uses: actions/setup-java@v4
+    with:
+      distribution: 'temurin'
+      java-version: '17'
+
+  - name: Setup Firebase Emulator
+    uses: C5T8fBt-WY/setup-firebase-emulator-win@v1
+    with:
+      node-version: 'none'  # Skip Node.js setup
+      java-version: 'none'  # Skip Java setup
+      project-id: 'demo-project'
+```
+
+## Inputs
+
+| Input                    | Description                                                                                  | Required | Default        |
+| ------------------------ | -------------------------------------------------------------------------------------------- | -------- | -------------- |
+| `firebase-tools-version` | Firebase Tools version to install                                                            | No       | `13.24.1`      |
+| `node-version`           | Node.js version to setup. Set to `none` to skip.                                             | No       | `20`           |
+| `java-version`           | Java version to setup (Temurin). Set to `none` to skip.                                      | No       | `17`           |
+| `enable-cache`           | Enable caching for firebase-tools installation                                               | No       | `true`         |
+| `project-id`             | Firebase project ID for emulator                                                             | No       | `demo-project` |
+| `emulators`              | Comma-separated list of emulators (e.g., `auth,firestore`). Empty = all from `firebase.json` | No       | `""` (all)     |
+| `wait-time`              | Seconds to wait after starting service before health checks                                  | No       | `60`           |
+| `skip-health-check`      | Skip health check verification (not recommended)                                             | No       | `false`        |
+
+### Available Emulators
+
+- `auth` - Firebase Authentication
+- `firestore` - Cloud Firestore
+- `storage` - Cloud Storage
+- `functions` - Cloud Functions
+- `hosting` - Firebase Hosting
+- `pubsub` - Cloud Pub/Sub
+- `database` - Realtime Database
+
+## Outputs
+
+| Output                 | Description                             | Example                          |
+| ---------------------- | --------------------------------------- | -------------------------------- |
+| `service-status`       | Status of the Firebase Emulator service | `Running`, `Stopped`, `NotFound` |
+| `health-check-summary` | JSON summary of health check results    | See below                        |
+
+### Health Check Summary Format
+
+```json
+[
+  {
+    "Name": "Auth",
+    "Port": 9099,
+    "PortOpen": true,
+    "HttpWorks": true,
+    "StatusCode": 200
+  },
+  {
+    "Name": "Firestore",
+    "Port": 8080,
+    "PortOpen": true,
+    "HttpWorks": true,
+    "StatusCode": 200
+  }
+]
+```
+
+## 🔧 How It Works
+
+1. **Validates Windows Runner**: Ensures action runs on Windows
+2. **Setup Dependencies**: 
+   - Installs Node.js (if not set to `none`)
+   - Installs Java (if not set to `none`)
+   - Installs or restores Firebase Tools from cache
+   - Installs Firebase Functions dependencies if present
+3. **Install NSSM**: Installs Non-Sucking Service Manager via Chocolatey
+4. **Configure Service**:
+   - Locates `firebase.js` binary
+   - Creates Windows service with proper working directory
+   - Configures stdout/stderr logging
+5. **Start Service**: Launches Firebase Emulator service
+6. **Wait for Initialization**: Configurable wait time
+7. **Health Checks** (unless skipped):
+   - Tests port availability
+   - Verifies HTTP responses
+   - Displays summary table
+
+## Health Check Output Example
+
+```
+======================================
+Emulator Health Check
+======================================
+
+Testing Auth on port 9099...
+  Port 9099 listening: True
+  HTTP request: SUCCESS (Status: 200)
+
+Testing Firestore on port 8080...
+  Port 8080 listening: True
+  HTTP request: SUCCESS (Status: 200)
+
+======================================
+Summary
+======================================
+
+Name      Port PortOpen HttpWorks StatusCode
+----      ---- -------- --------- ----------
+Auth      9099     True      True        200
+Firestore 8080     True      True        200
+Storage   9199     True     False        N/A
+Functions 5001     True      True        200
+
+[SUCCESS] All emulators are healthy!
+```
+
+**Note**: Some emulators (like Storage) may show `HttpWorks: False` but still function correctly. Check `PortOpen` status and run your tests.
+
+## Troubleshooting
+
+### Emulators not starting
+
+1. **Check logs**: Upload `emulator-stdout.log` and `emulator-stderr.log` as artifacts:
+   ```yaml
+   - name: Upload Emulator Logs
+     if: always()
+     uses: actions/upload-artifact@v4
+     with:
+       name: emulator-logs
+       path: |
+         emulator-stdout.log
+         emulator-stderr.log
+       if-no-files-found: ignore
+   ```
+
+2. **Verify firebase.json**: Ensure your configuration is valid
+3. **Check Functions dependencies**: If using Functions, verify `functions/package.json` exists
+4. **Increase wait time**: Some emulators may need more initialization time
+   
+   ```yaml
+   wait-time: '90'
+   ```
+
+### Health checks failing but tests pass
+
+Some emulators don't respond to plain HTTP GET requests:
+- Check `PortOpen: True` indicates emulator is listening
+- Run your actual tests - they may work despite HTTP check failure
+- Consider using `skip-health-check: 'true'` if false positives occur
+
+### Node.js or Java version issues
+
+- Firebase CLI 13.24.1+ requires Node.js 18+
+- Most emulators require Java 11+
+- To use specific versions:
+  ```yaml
+  node-version: '20'
+  java-version: '17'
+  ```
+- To skip (use pre-installed versions):
+  ```yaml
+  node-version: 'none'
+  java-version: 'none'
+  ```
+
+### Service already exists
+
+If a previous run failed to clean up:
+
+```yaml
+- name: Pre-cleanup
+  run: |
+    $service = Get-Service -Name FirebaseEmulator -ErrorAction SilentlyContinue
+    if ($service) {
+      nssm stop FirebaseEmulator
+      nssm remove FirebaseEmulator confirm
+    }
+  shell: pwsh
+```
+
+### Cache issues
+
+To disable caching:
+```yaml
+enable-cache: 'false'
+```
+
+To clear cache, manually delete the cache in your repository settings or use a different cache key by changing the `firebase-tools-version`.
+
+## Performance
+
+| Scenario                 | Time         |
+| ------------------------ | ------------ |
+| **First run (no cache)** | ~6-7 minutes |
+| **Cached run**           | ~2-3 minutes |
+| **Cache disabled**       | ~6-7 minutes |
+
+## Comparison with Other Approaches
+
+| Approach                          | Pros                                                  | Cons                                     |
+| --------------------------------- | ----------------------------------------------------- | ---------------------------------------- |
+| **NSSM Service** (this action)    | ✅ Reliable<br>✅ Proper lifecycle<br>✅ Background logs | ⚠️ Windows-only                           |
+| PowerShell `Start-Job`            | ✅ Simple<br>✅ No dependencies                         | ❌ Not persistent<br>❌ Cross-step issues  |
+| Direct `firebase emulators:start` | ✅ Simple                                              | ❌ Blocks workflow<br>❌ No parallel tests |
+
+## Examples
+
+### Python Tests
+
+```yaml
+- name: Setup Python
+  uses: actions/setup-python@v5
+  with:
+    python-version: '3.11'
+
+- name: Install Python dependencies
+  run: pip install firebase-admin requests
+
+- name: Setup Firebase Emulator
+  uses: C5T8fBt-WY/setup-firebase-emulator-win@v1
+
+- name: Run Python Tests
+  run: python test_firebase.py
+```
+
+### Node.js Tests
+
+```yaml
+- name: Setup Firebase Emulator
+  uses: C5T8fBt-WY/setup-firebase-emulator-win@v1
+
+- name: Install dependencies
+  run: npm install
+
+- name: Run Tests
+  run: npm test
+```
+
+### Multiple Test Suites
+
+```yaml
+- name: Setup Firebase Emulator
+  uses: C5T8fBt-WY/setup-firebase-emulator-win@v1
+  with:
+    emulators: 'auth,firestore,storage,functions'
+
+- name: Run Auth Tests
+  run: python test_auth.py
+
+- name: Run Firestore Tests
+  run: python test_firestore.py
+
+- name: Run Storage Tests
+  run: python test_storage.py
+```
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
+
+## License
+MIT License - see the [LICENSE](LICENSE) file for details.
+
+##  Support
+
+If you encounter any issues or have questions:
+1. Check the [Troubleshooting](#-troubleshooting) section
+2. Search [existing issues](https://github.com/C5T8fBt-WY/setup-firebase-emulator-win/issues)
+3. Open a [new issue](https://github.com/C5T8fBt-WY/setup-firebase-emulator-win/issues/new) with:
+   - Your workflow file
+   - Emulator logs (if available)
+   - Error messages
+   - Steps to reproduce

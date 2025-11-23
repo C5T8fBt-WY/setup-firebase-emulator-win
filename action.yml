@@ -1,0 +1,341 @@
+name: "Setup Firebase Emulator (Windows Service)"
+description: "Sets up Firebase Emulator Suite as a Windows service using NSSM for reliable background execution"
+author: "C5T8fBt-WY"
+
+branding:
+  icon: "server"
+  color: "orange"
+
+inputs:
+  firebase-tools-version:
+    description: "Firebase Tools version to install"
+    required: false
+    default: "13.24.1"
+
+  node-version:
+    description: "Node.js version to setup. Set to 'none' to use existing environment."
+    required: false
+    default: "20"
+
+  java-version:
+    description: "Java version to setup (Temurin). Set to 'none' to use existing environment."
+    required: false
+    default: "17"
+
+  enable-cache:
+    description: "Enable caching for firebase-tools installation"
+    required: false
+    default: "true"
+
+  project-id:
+    description: "Firebase project ID for emulator"
+    required: false
+    default: "demo-project"
+
+  emulators:
+    description: "Comma-separated list of emulators to start (e.g., auth,firestore,storage,functions). If empty, starts all configured in firebase.json"
+    required: false
+    default: ""
+
+  wait-time:
+    description: "Seconds to wait after starting service before health checks"
+    required: false
+    default: "60"
+
+  skip-health-check:
+    description: "Skip health check verification (not recommended)"
+    required: false
+    default: "false"
+
+outputs:
+  service-status:
+    description: "Status of the Firebase Emulator service"
+    value: ${{ steps.check-service.outputs.status }}
+
+  health-check-summary:
+    description: "JSON summary of health check results"
+    value: ${{ steps.health-check.outputs.summary }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Validate Windows Runner
+      shell: pwsh
+      run: |
+        if ($env:RUNNER_OS -ne 'Windows') {
+          Write-Error "This action only supports Windows runners"
+          exit 1
+        }
+        Write-Host "[OK] Running on Windows: $env:RUNNER_OS" -ForegroundColor Green
+
+    - name: Setup Node.js
+      if: inputs.node-version != 'none'
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Setup Java
+      if: inputs.java-version != 'none'
+      uses: actions/setup-java@v4
+      with:
+        distribution: "temurin"
+        java-version: ${{ inputs.java-version }}
+
+    - name: Verify Java Installation
+      if: inputs.java-version != 'none'
+      shell: pwsh
+      run: |
+        $javaVersion = java -version 2>&1 | Select-Object -First 1
+        Write-Host "[OK] Java installed: $javaVersion" -ForegroundColor Green
+
+    - name: Set cache path
+      if: inputs.enable-cache == 'true'
+      shell: pwsh
+      run: |
+        $cachePath = Join-Path $HOME ".firebase-cache"
+        echo "FIREBASE_CACHE_PATH=$cachePath" >> $env:GITHUB_ENV
+        Write-Host "Cache path set to: $cachePath" -ForegroundColor Cyan
+
+    - name: Cache firebase-tools
+      if: inputs.enable-cache == 'true'
+      id: cache-firebase
+      uses: actions/cache@v4
+      with:
+        path: ${{ env.FIREBASE_CACHE_PATH }}
+        key: firebase-tools-${{ runner.os }}-${{ inputs.firebase-tools-version }}
+
+    - name: Install firebase-tools (with cache)
+      if: inputs.enable-cache == 'true' && steps.cache-firebase.outputs.cache-hit != 'true'
+      shell: pwsh
+      run: |
+        Write-Host "Installing firebase-tools@${{ inputs.firebase-tools-version }} to ${{ env.FIREBASE_CACHE_PATH }}..." -ForegroundColor Cyan
+        npm install -g firebase-tools@${{ inputs.firebase-tools-version }} --prefix "${{ env.FIREBASE_CACHE_PATH }}"
+        Write-Host "[OK] Firebase Tools installed with cache enabled" -ForegroundColor Green
+
+    - name: Add firebase-tools to PATH (cached)
+      if: inputs.enable-cache == 'true'
+      shell: pwsh
+      run: |
+        $binPath = "${{ env.FIREBASE_CACHE_PATH }}"
+        echo "$binPath" >> $env:GITHUB_PATH
+        Write-Host "Added $binPath to PATH" -ForegroundColor Cyan
+
+    - name: Install firebase-tools (without cache)
+      if: inputs.enable-cache != 'true'
+      shell: pwsh
+      run: |
+        Write-Host "Installing firebase-tools@${{ inputs.firebase-tools-version }} globally..." -ForegroundColor Cyan
+        npm install -g firebase-tools@${{ inputs.firebase-tools-version }}
+        Write-Host "[OK] Firebase Tools installed globally (cache disabled)" -ForegroundColor Green
+
+    - name: Verify firebase-tools
+      shell: pwsh
+      run: |
+        if ("${{ inputs.enable-cache }}" -eq "true") {
+          $exePath = Join-Path "${{ env.FIREBASE_CACHE_PATH }}" "firebase.cmd"
+          if (Test-Path $exePath) {
+            $version = & $exePath --version
+            Write-Host "[OK] Firebase CLI version: $version" -ForegroundColor Green
+          } else {
+            Write-Error "Firebase executable not found at $exePath"
+            exit 1
+          }
+        } else {
+          $version = firebase --version
+          Write-Host "[OK] Firebase CLI version: $version" -ForegroundColor Green
+        }
+
+    - name: Install Firebase Functions dependencies
+      shell: pwsh
+      run: |
+        if (Test-Path "functions/package.json") {
+          Write-Host "Installing Firebase Functions dependencies..." -ForegroundColor Cyan
+          cd functions
+          npm install
+          Write-Host "[OK] Functions dependencies installed" -ForegroundColor Green
+        } else {
+          Write-Host "[INFO] No functions/package.json found, skipping..." -ForegroundColor Yellow
+        }
+
+    - name: Install NSSM
+      shell: pwsh
+      run: |
+        Write-Host "Installing NSSM (Non-Sucking Service Manager)..." -ForegroundColor Cyan
+        choco install nssm -y
+        Write-Host "[OK] NSSM installed" -ForegroundColor Green
+
+    - name: Start Firebase Emulators as Windows Service
+      id: start-service
+      shell: pwsh
+      run: |
+        Write-Host "======================================" -ForegroundColor Cyan
+        Write-Host "Starting Firebase Emulator Service" -ForegroundColor Cyan
+        Write-Host "======================================" -ForegroundColor Cyan
+        Write-Host ""
+
+        # Find Node.js and Firebase CLI paths
+        $nodePath = (Get-Command node).Source
+        $firebaseCmd = (Get-Command firebase).Source
+
+        Write-Host "Node.js: $nodePath" -ForegroundColor Gray
+        Write-Host "Firebase command: $firebaseCmd" -ForegroundColor Gray
+
+        # Locate firebase.js
+        $firebaseDir = Split-Path -Parent $firebaseCmd
+        $possiblePaths = @(
+          (Join-Path $firebaseDir "node_modules\firebase-tools\lib\bin\firebase.js"),
+          "$env:APPDATA\npm\node_modules\firebase-tools\lib\bin\firebase.js",
+          "$env:USERPROFILE\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js"
+        )
+
+        # If cache is enabled, add cache path
+        if ("${{ inputs.enable-cache }}" -eq "true") {
+          $possiblePaths += "${{ env.FIREBASE_CACHE_PATH }}\node_modules\firebase-tools\lib\bin\firebase.js"
+        }
+
+        $firebaseBin = $null
+        foreach ($path in $possiblePaths) {
+          if (Test-Path $path) {
+            $firebaseBin = $path
+            break
+          }
+        }
+
+        if (-not $firebaseBin) {
+          Write-Error "Could not find firebase.js"
+          exit 1
+        }
+
+        $workDir = $PWD.Path
+        $projectId = "${{ inputs.project-id }}"
+        $emulatorsInput = "${{ inputs.emulators }}"
+
+        Write-Host "Firebase binary: $firebaseBin" -ForegroundColor Gray
+        Write-Host "Working directory: $workDir" -ForegroundColor Gray
+        Write-Host "Project ID: $projectId" -ForegroundColor Cyan
+
+        # Build emulator command arguments
+        $args = "emulators:start --project=$projectId"
+        if ($emulatorsInput) {
+          $args += " --only $emulatorsInput"
+          Write-Host "Starting specific emulators: $emulatorsInput" -ForegroundColor Cyan
+        } else {
+          Write-Host "Starting all configured emulators" -ForegroundColor Cyan
+        }
+        Write-Host ""
+
+        # Install and configure Windows service
+        nssm install FirebaseEmulator $nodePath $firebaseBin $args.Split(' ')
+        nssm set FirebaseEmulator AppDirectory $workDir
+        nssm set FirebaseEmulator AppStdout "$workDir\emulator-stdout.log"
+        nssm set FirebaseEmulator AppStderr "$workDir\emulator-stderr.log"
+
+        # Start the service
+        Write-Host "Starting service..." -ForegroundColor Yellow
+        nssm start FirebaseEmulator
+
+        Write-Host "[OK] Service start command issued" -ForegroundColor Green
+        Write-Host ""
+
+    - name: Wait for Service Initialization
+      shell: pwsh
+      run: |
+        $waitTime = [int]"${{ inputs.wait-time }}"
+        Write-Host "Waiting $waitTime seconds for emulators to initialize..." -ForegroundColor Yellow
+        Start-Sleep -Seconds $waitTime
+        Write-Host "[OK] Wait complete" -ForegroundColor Green
+
+    - name: Check Service Status
+      id: check-service
+      shell: pwsh
+      run: |
+        $service = Get-Service -Name FirebaseEmulator -ErrorAction SilentlyContinue
+        if ($service) {
+          $status = $service.Status
+          Write-Host "Service status: $status" -ForegroundColor $(if ($status -eq 'Running') { 'Green' } else { 'Yellow' })
+          "status=$status" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+        } else {
+          Write-Host "[WARN] Service not found" -ForegroundColor Yellow
+          "status=NotFound" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+        }
+
+    - name: Health Check
+      id: health-check
+      if: inputs.skip-health-check != 'true'
+      shell: pwsh
+      run: |
+        Write-Host "======================================" -ForegroundColor Cyan
+        Write-Host "Emulator Health Check" -ForegroundColor Cyan
+        Write-Host "======================================" -ForegroundColor Cyan
+        Write-Host ""
+
+        # Parse firebase.json to get ports
+        $configPath = "firebase.json"
+        if (-not (Test-Path $configPath)) {
+          Write-Host "[WARN] firebase.json not found, using default ports" -ForegroundColor Yellow
+          $emulators = @(
+            @{Name="Auth"; Port=9099},
+            @{Name="Firestore"; Port=8080},
+            @{Name="Storage"; Port=9199},
+            @{Name="Functions"; Port=5001}
+          )
+        } else {
+          $config = Get-Content $configPath | ConvertFrom-Json
+          $emulators = @()
+          
+          if ($config.emulators.auth) { $emulators += @{Name="Auth"; Port=$config.emulators.auth.port} }
+          if ($config.emulators.firestore) { $emulators += @{Name="Firestore"; Port=$config.emulators.firestore.port} }
+          if ($config.emulators.storage) { $emulators += @{Name="Storage"; Port=$config.emulators.storage.port} }
+          if ($config.emulators.functions) { $emulators += @{Name="Functions"; Port=$config.emulators.functions.port} }
+          if ($config.emulators.hosting) { $emulators += @{Name="Hosting"; Port=$config.emulators.hosting.port} }
+          if ($config.emulators.pubsub) { $emulators += @{Name="Pubsub"; Port=$config.emulators.pubsub.port} }
+          if ($config.emulators.database) { $emulators += @{Name="Database"; Port=$config.emulators.database.port} }
+        }
+
+        $results = @()
+        foreach ($emu in $emulators) {
+          Write-Host "Testing $($emu.Name) on port $($emu.Port)..." -ForegroundColor Yellow
+          
+          # Test port listening
+          $portOpen = Test-NetConnection -ComputerName 127.0.0.1 -Port $emu.Port -InformationLevel Quiet -WarningAction SilentlyContinue
+          Write-Host "  Port $($emu.Port) listening: $portOpen" -ForegroundColor $(if ($portOpen) { 'Green' } else { 'Red' })
+          
+          # Test HTTP response
+          $httpWorks = $false
+          $statusCode = "N/A"
+          try {
+            $response = Invoke-WebRequest -Uri "http://127.0.0.1:$($emu.Port)" -TimeoutSec 3 -UseBasicParsing -ErrorAction Stop
+            $httpWorks = $true
+            $statusCode = $response.StatusCode
+            Write-Host "  HTTP request: SUCCESS (Status: $statusCode)" -ForegroundColor Green
+          } catch {
+            Write-Host "  HTTP request: FAILED" -ForegroundColor Red
+          }
+          
+          $results += [PSCustomObject]@{
+            Name = $emu.Name
+            Port = $emu.Port
+            PortOpen = $portOpen
+            HttpWorks = $httpWorks
+            StatusCode = $statusCode
+          }
+          Write-Host ""
+        }
+
+        # Summary
+        Write-Host "======================================" -ForegroundColor Cyan
+        Write-Host "Summary" -ForegroundColor Cyan
+        Write-Host "======================================" -ForegroundColor Cyan
+        $results | Format-Table -AutoSize
+
+        $allHealthy = ($results | Where-Object { $_.PortOpen }).Count -eq $results.Count
+        if ($allHealthy) {
+          Write-Host "[SUCCESS] All emulators are healthy!" -ForegroundColor Green
+        } else {
+          Write-Host "[WARNING] Some emulators may not be fully ready" -ForegroundColor Yellow
+          Write-Host "Tests will fail if emulators are actually not working" -ForegroundColor Yellow
+        }
+
+        # Export summary as JSON
+        $summary = $results | ConvertTo-Json -Compress
+        "summary=$summary" | Out-File -FilePath $env:GITHUB_OUTPUT -Append

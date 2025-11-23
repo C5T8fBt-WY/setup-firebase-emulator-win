@@ -1,0 +1,195 @@
+name: Example - Firebase Emulator Tests
+
+on:
+    push:
+        branches: [main]
+    pull_request:
+        branches: [main]
+    workflow_dispatch:
+
+jobs:
+    # Basic usage with all defaults
+    basic-test:
+        runs-on: windows-latest
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup Firebase Emulator
+              uses: C5T8fBt-WY/setup-firebase-emulator-win@v1
+              with:
+                  project-id: "demo-project"
+
+            - name: Run Tests
+              run: echo "Run your tests here"
+
+            - name: Cleanup
+              if: always()
+              run: |
+                  nssm stop FirebaseEmulator
+                  nssm remove FirebaseEmulator confirm
+              shell: pwsh
+
+    # Using specific emulators with custom versions
+    custom-config:
+        runs-on: windows-latest
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup Firebase Emulator
+              uses: C5T8fBt-WY/setup-firebase-emulator-win@v1
+              with:
+                  firebase-tools-version: "13.24.1"
+                  node-version: "20"
+                  java-version: "17"
+                  enable-cache: "true"
+                  project-id: "my-project"
+                  emulators: "auth,firestore,storage,functions"
+                  wait-time: "90"
+
+            - name: Run Tests
+              run: echo "Run your tests here"
+
+            - name: Cleanup
+              if: always()
+              run: |
+                  nssm stop FirebaseEmulator
+                  nssm remove FirebaseEmulator confirm
+              shell: pwsh
+
+    # Using pre-installed Node.js and Java
+    existing-deps:
+        runs-on: windows-latest
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "20"
+                  cache: "npm"
+
+            - name: Setup Java
+              uses: actions/setup-java@v4
+              with:
+                  distribution: "temurin"
+                  java-version: "17"
+
+            - name: Setup Firebase Emulator
+              uses: C5T8fBt-WY/setup-firebase-emulator-win@v1
+              with:
+                  node-version: "none" # Skip - already installed
+                  java-version: "none" # Skip - already installed
+                  project-id: "demo-project"
+
+            - name: Run Tests
+              run: echo "Run your tests here"
+
+            - name: Cleanup
+              if: always()
+              run: |
+                  nssm stop FirebaseEmulator
+                  nssm remove FirebaseEmulator confirm
+              shell: pwsh
+
+    # Python tests example
+    python-tests:
+        runs-on: windows-latest
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.11"
+
+            - name: Install Python dependencies
+              run: |
+                  python -m pip install --upgrade pip
+                  pip install firebase-admin requests pytest
+
+            - name: Setup Firebase Emulator
+              uses: C5T8fBt-WY/setup-firebase-emulator-win@v1
+              with:
+                  project-id: "test-project"
+                  emulators: "auth,firestore"
+
+            - name: Run Python Tests
+              run: pytest tests/
+
+            - name: Cleanup
+              if: always()
+              run: |
+                  nssm stop FirebaseEmulator
+                  nssm remove FirebaseEmulator confirm
+              shell: pwsh
+
+            - name: Upload Emulator Logs
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: emulator-logs-python
+                  path: |
+                      emulator-stdout.log
+                      emulator-stderr.log
+                  if-no-files-found: ignore
+
+    # Without caching (for testing)
+    no-cache:
+        runs-on: windows-latest
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup Firebase Emulator
+              uses: C5T8fBt-WY/setup-firebase-emulator-win@v1
+              with:
+                  enable-cache: "false"
+                  project-id: "demo-project"
+
+            - name: Run Tests
+              run: echo "Run your tests here"
+
+            - name: Cleanup
+              if: always()
+              run: |
+                  nssm stop FirebaseEmulator
+                  nssm remove FirebaseEmulator confirm
+              shell: pwsh
+
+    # Matrix testing with different configurations
+    matrix-test:
+        runs-on: windows-latest
+        strategy:
+            matrix:
+                node-version: ["18", "20"]
+                java-version: ["11", "17"]
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup Firebase Emulator
+              uses: C5T8fBt-WY/setup-firebase-emulator-win@v1
+              with:
+                  node-version: ${{ matrix.node-version }}
+                  java-version: ${{ matrix.java-version }}
+                  project-id: "demo-project"
+
+            - name: Run Tests
+              run: echo "Testing with Node ${{ matrix.node-version }} and Java ${{ matrix.java-version }}"
+
+            - name: Cleanup
+              if: always()
+              run: |
+                  nssm stop FirebaseEmulator
+                  nssm remove FirebaseEmulator confirm
+              shell: pwsh
