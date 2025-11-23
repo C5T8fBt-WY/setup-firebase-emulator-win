@@ -331,21 +331,21 @@ runs:
             $name = $emulator.Name
             $info = $emulator.Value
             
-            $host = if ($info.host) { $info.host } else { "127.0.0.1" }
+            $emulatorHost = if ($info.host) { $info.host } else { "127.0.0.1" }
             $port = $info.port
             
             Write-Host "$name Emulator:" -ForegroundColor Yellow
-            Write-Host "  Host: $host" -ForegroundColor Gray
+            Write-Host "  Host: $emulatorHost" -ForegroundColor Gray
             Write-Host "  Port: $port" -ForegroundColor Gray
             
             # Test port connectivity
-            $portOpen = Test-NetConnection -ComputerName $host -Port $port -InformationLevel Quiet -WarningAction SilentlyContinue
+            $portOpen = Test-NetConnection -ComputerName $emulatorHost -Port $port -InformationLevel Quiet -WarningAction SilentlyContinue
             Write-Host "  Status: $(if ($portOpen) { '[OK] Running' } else { '[WARN] Not accessible' })" -ForegroundColor $(if ($portOpen) { 'Green' } else { 'Yellow' })
             Write-Host ""
             
             $results += [PSCustomObject]@{
               Name = $name
-              Host = $host
+              Host = $emulatorHost
               Port = $port
               Running = $portOpen
             }
