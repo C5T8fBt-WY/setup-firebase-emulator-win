@@ -1,9 +1,9 @@
-name: Test Action
+name: Basic Tests
 
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [dev]
 
 jobs:
   test-basic:
@@ -76,77 +76,3 @@ jobs:
             emulator-stdout.log
             emulator-stderr.log
           if-no-files-found: ignore
-
-  test-skip-deps:
-    runs-on: windows-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: "temurin"
-          java-version: "17"
-
-      - name: Create test firebase.json
-        run: |
-          $config = @{
-            emulators = @{
-              auth = @{ port = 9099 }
-            }
-          }
-          $config | ConvertTo-Json -Depth 10 | Out-File firebase.json -Encoding UTF8
-        shell: pwsh
-
-      - name: Setup Firebase Emulator (Skip Deps)
-        uses: ./
-        with:
-          node-version: "none"
-          java-version: "none"
-          project-id: "test-skip-deps"
-          emulators: "auth"
-
-      - name: Cleanup
-        if: always()
-        run: |
-          nssm stop FirebaseEmulator
-          nssm remove FirebaseEmulator confirm
-        shell: pwsh
-
-  test-no-cache:
-    runs-on: windows-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Create test firebase.json
-        run: |
-          $config = @{
-            emulators = @{
-              auth = @{ port = 9099 }
-            }
-          }
-          $config | ConvertTo-Json -Depth 10 | Out-File firebase.json -Encoding UTF8
-        shell: pwsh
-
-      - name: Setup Firebase Emulator (No Cache)
-        uses: ./
-        with:
-          enable-cache: "false"
-          project-id: "test-no-cache"
-          emulators: "auth"
-
-      - name: Cleanup
-        if: always()
-        run: |
-          nssm stop FirebaseEmulator
-          nssm remove FirebaseEmulator confirm
-        shell: pwsh
