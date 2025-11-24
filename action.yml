@@ -18,7 +18,7 @@ inputs:
     default: "npm"
 
   node-version:
-    description: "Node.js version to setup. Set to 'none' to use existing environment. Ignored if install-method is 'binary'."
+    description: "Node.js version to setup. Set to 'none' to use existing environment. Ignored if firebase-tools-install-method is 'binary'."
     required: false
     default: "20"
 
