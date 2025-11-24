@@ -42,3 +42,7 @@ __pycache__/
 .env.local
 *.tmp
 *.temp
+
+# AI
+.github/copilot-instructions.md
+AI_Assistant_Docs/
