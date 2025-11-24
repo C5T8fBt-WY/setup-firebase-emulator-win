@@ -312,21 +312,91 @@ runs:
         $elapsed = ($stepEnd - $stepStart).TotalSeconds
         Write-Host "[TIMING] Total Step Duration: $($elapsed.ToString('F3'))s" -ForegroundColor Magenta
 
-    - name: Wait for Service Initialization
+    - name: Wait for Emulators to be Ready
       shell: pwsh
       run: |
         $stepStart = Get-Date
+        Write-Host "======================================" -ForegroundColor Cyan
+        Write-Host "Waiting for Emulators to be Ready" -ForegroundColor Cyan
+        Write-Host "======================================" -ForegroundColor Cyan
         Write-Host "[TIMING] Step Start: $($stepStart.ToString('HH:mm:ss.fff'))" -ForegroundColor Magenta
+        Write-Host ""
         
-        $waitTime = [int]"${{ inputs.wait-time }}"
-        Write-Host "Waiting $waitTime seconds for emulators to initialize..." -ForegroundColor Yellow
-        Write-Host "[INFO] During this time, Firebase downloads and initializes emulator components" -ForegroundColor Cyan
-        Start-Sleep -Seconds $waitTime
-        Write-Host "[OK] Wait complete" -ForegroundColor Green
+        $maxWaitTime = [int]"${{ inputs.wait-time }}"
+        $pollInterval = 3  # Check every 3 seconds
+        $elapsedTime = 0
         
+        # Get Hub port from firebase.json
+        $configPath = "${{ inputs.firebase-config-path }}"
+        if (-not [System.IO.Path]::IsPathRooted($configPath)) {
+          if ($configPath.StartsWith("./") -or $configPath.StartsWith(".\")) {
+            $configPath = Join-Path $PWD.Path $configPath
+          } else {
+            $workDir = "${{ inputs.working-directory }}"
+            if (-not [System.IO.Path]::IsPathRooted($workDir)) {
+              $workDir = Join-Path $PWD.Path $workDir
+            }
+            $configPath = Join-Path $workDir $configPath
+          }
+        }
+        
+        $hubPort = 4400
+        if (Test-Path $configPath) {
+          $config = Get-Content $configPath | ConvertFrom-Json
+          if ($config.emulators.hub) {
+            $hubPort = $config.emulators.hub.port
+          }
+        }
+        
+        Write-Host "Polling Hub at port $hubPort (max wait: $maxWaitTime seconds)..." -ForegroundColor Cyan
+        Write-Host ""
+        
+        $ready = $false
+        while ($elapsedTime -lt $maxWaitTime -and -not $ready) {
+          try {
+            $hubResponse = Invoke-RestMethod -Uri "http://127.0.0.1:$hubPort/emulators" -TimeoutSec 2 -UseBasicParsing -ErrorAction Stop
+            
+            # Check if all emulators are accessible
+            $allReady = $true
+            foreach ($emulator in $hubResponse.PSObject.Properties) {
+              $name = $emulator.Name
+              $info = $emulator.Value
+              $emulatorHost = if ($info.host) { $info.host } else { "127.0.0.1" }
+              $port = $info.port
+              
+              $portOpen = Test-NetConnection -ComputerName $emulatorHost -Port $port -InformationLevel Quiet -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
+              if (-not $portOpen) {
+                $allReady = $false
+                break
+              }
+            }
+            
+            if ($allReady) {
+              $ready = $true
+              $checkTime = Get-Date
+              $actualWaitTime = ($checkTime - $stepStart).TotalSeconds
+              Write-Host "[SUCCESS] All emulators are ready!" -ForegroundColor Green
+              Write-Host "[TIMING] Emulators became ready in $($actualWaitTime.ToString('F3'))s" -ForegroundColor Magenta
+              break
+            }
+          } catch {
+            # Hub not ready yet, continue polling
+          }
+          
+          Write-Host "  Waiting... ($($elapsedTime)s elapsed)" -ForegroundColor Gray
+          Start-Sleep -Seconds $pollInterval
+          $elapsedTime += $pollInterval
+        }
+        
+        if (-not $ready) {
+          Write-Host "[WARN] Reached timeout ($maxWaitTime s) before all emulators reported ready" -ForegroundColor Yellow
+          Write-Host "[INFO] This may be normal - proceeding with health check" -ForegroundColor Cyan
+        }
+        
+        Write-Host ""
         $stepEnd = Get-Date
         $elapsed = ($stepEnd - $stepStart).TotalSeconds
-        Write-Host "[TIMING] Step Duration: $($elapsed.ToString('F3'))s" -ForegroundColor Magenta
+        Write-Host "[TIMING] Total Step Duration: $($elapsed.ToString('F3'))s" -ForegroundColor Magenta
 
     - name: Check Service Status
       id: check-service
