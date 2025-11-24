@@ -8,29 +8,24 @@ def test_python_functions_emulator():
     # Give emulator extra time to initialize Python runtime
     max_retries = 10
     retry_delay = 3
-    
+
     for attempt in range(max_retries):
         try:
             # Test hello_world function
             response = requests.get(
-                "http://127.0.0.1:5001/demo-python-functions/us-central1/hello_world",
-                timeout=5
-            )
+                "http://127.0.0.1:5001/demo-python-functions/us-central1/hello_world", timeout=5)
             assert response.status_code == 200
             assert "Hello from Python" in response.text
             print("[OK] hello_world function is responding")
-            
+
             # Test echo function
             test_data = "Test message"
-            response = requests.post(
-                "http://127.0.0.1:5001/demo-python-functions/us-central1/echo",
-                data=test_data,
-                timeout=5
-            )
+            response = requests.post("http://127.0.0.1:5001/demo-python-functions/us-central1/echo",
+                                     data=test_data, timeout=5)
             assert response.status_code == 200
             assert test_data in response.text
             print("[OK] echo function is responding")
-            
+
             break
         except (requests.exceptions.ConnectionError, AssertionError) as e:
             if attempt < max_retries - 1:
