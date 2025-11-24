@@ -201,30 +201,76 @@ runs:
           Write-Host "[TIMING] npm install Duration: $($npmTime.ToString('F3'))s" -ForegroundColor Magenta
         } elseif (Test-Path $requirementsPath) {
           Write-Host "Installing Python Firebase Functions dependencies..." -ForegroundColor Cyan
-          $pipStart = Get-Date
-          cd $functionsDir
           
           # Check if uv is available (faster alternative to pip)
           $uvAvailable = Get-Command uv -ErrorAction SilentlyContinue
           if ($uvAvailable) {
-            Write-Host "[INFO] Using uv for virtual environment and dependency installation" -ForegroundColor Cyan
+            Write-Host "[INFO] Using uv for dependency installation" -ForegroundColor Cyan
             
-            # Create venv with uv
+            # Check Python version - firebase-functions requires Python 3.10+
+            $pythonVersion = python --version 2>&1
+            if ($pythonVersion -match "Python (\d+)\.(\d+)") {
+              $major = [int]$matches[1]
+              $minor = [int]$matches[2]
+              
+              if ($major -lt 3 -or ($major -eq 3 -and $minor -lt 10)) {
+                Write-Host "[WARN] Current Python version ($pythonVersion) is too old for firebase-functions (requires 3.10+)" -ForegroundColor Yellow
+                Write-Host "[INFO] Installing Python 3.12 via uv..." -ForegroundColor Cyan
+                uv python install 3.12
+                # Use the installed Python
+                $pythonExe = "python3.12"
+              } else {
+                Write-Host "[INFO] Python version $pythonVersion is compatible" -ForegroundColor Green
+                $pythonExe = "python"
+              }
+            }
+            
+            $pipStart = Get-Date
+            cd $functionsDir
+            
+            # Create venv with compatible Python
             if (-not (Test-Path ".venv")) {
-              uv venv
+              if ($pythonExe -eq "python3.12") {
+                uv venv --python 3.12
+              } else {
+                uv venv
+              }
             }
             
             # Install dependencies into venv
             uv pip install -r requirements.txt
+            
+            $pipEnd = Get-Date
+            $pipTime = ($pipEnd - $pipStart).TotalSeconds
+            Write-Host "[OK] Python functions dependencies installed" -ForegroundColor Green
+            Write-Host "[TIMING] uv install Duration: $($pipTime.ToString('F3'))s" -ForegroundColor Magenta
           } else {
             Write-Host "[INFO] Using pip for installation (consider using astral-sh/setup-uv action in your workflow for faster builds)" -ForegroundColor Cyan
+            
+            # Check Python version
+            $pythonVersion = python --version 2>&1
+            Write-Host "[INFO] Python version: $pythonVersion" -ForegroundColor Cyan
+            if ($pythonVersion -match "Python (\d+)\.(\d+)") {
+              $major = [int]$matches[1]
+              $minor = [int]$matches[2]
+              
+              if ($major -lt 3 -or ($major -eq 3 -and $minor -lt 10)) {
+                Write-Host "[ERROR] Python $pythonVersion is too old for firebase-functions (requires 3.10+)" -ForegroundColor Red
+                Write-Host "[ERROR] Please use actions/setup-python@v5 with python-version: '3.10' or higher in your workflow before this action" -ForegroundColor Red
+                Write-Host "[ERROR] Or use astral-sh/setup-uv action which can auto-install compatible Python versions" -ForegroundColor Red
+                exit 1
+              }
+            }
+            
+            $pipStart = Get-Date
+            cd $functionsDir
             pip install -r requirements.txt
+            
+            $pipEnd = Get-Date
+            $pipTime = ($pipEnd - $pipStart).TotalSeconds
+            Write-Host "[OK] Python functions dependencies installed" -ForegroundColor Green
+            Write-Host "[TIMING] pip install Duration: $($pipTime.ToString('F3'))s" -ForegroundColor Magenta
           }
-          
-          $pipEnd = Get-Date
-          $pipTime = ($pipEnd - $pipStart).TotalSeconds
-          Write-Host "[OK] Python functions dependencies installed" -ForegroundColor Green
-          Write-Host "[TIMING] pip/uv install Duration: $($pipTime.ToString('F3'))s" -ForegroundColor Magenta
         } else {
           Write-Host "[INFO] No functions/package.json or functions/requirements.txt found, skipping..." -ForegroundColor Yellow
         }

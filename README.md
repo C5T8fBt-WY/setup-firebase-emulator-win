@@ -294,7 +294,9 @@ Functions 5001     True      True        200
    ```
 
 2. **Verify firebase.json**: Ensure your configuration is valid
-3. **Check Functions dependencies**: If using Functions, verify `functions/package.json` exists
+3. **Check Functions dependencies**: 
+   - For Node.js Functions: verify `functions/package.json` exists
+   - For Python Functions: verify `functions/requirements.txt` exists and see Python Functions requirements below
 4. **Increase wait time**: Some emulators may need more initialization time
    
    ```yaml
@@ -307,6 +309,46 @@ Some emulators don't respond to plain HTTP GET requests:
 - Check `PortOpen: True` indicates emulator is listening
 - Run your actual tests - they may work despite HTTP check failure
 - Consider using `skip-health-check: 'true'` if false positives occur
+
+### Python Functions Requirements
+
+**Firebase Functions for Python requires Python 3.10 or higher.** The default Python on Windows runners is 3.9, which is too old.
+
+**Recommended Setup (using uv):**
+```yaml
+steps:
+  - uses: actions/checkout@v4
+  
+  - name: Install uv
+    uses: astral-sh/setup-uv@v7
+    with:
+      enable-cache: true
+  
+  - name: Setup Firebase Emulator
+    uses: C5T8fBt-WY/setup-firebase-emulator-win@v1
+    with:
+      project-id: 'demo-project'
+      # uv will auto-install Python 3.12 if needed
+```
+
+**Alternative (explicit Python setup):**
+```yaml
+steps:
+  - uses: actions/checkout@v4
+  
+  - uses: actions/setup-python@v5
+    with:
+      python-version: '3.12'  # 3.10+ required
+  
+  - name: Setup Firebase Emulator
+    uses: C5T8fBt-WY/setup-firebase-emulator-win@v1
+    with:
+      project-id: 'demo-project'
+```
+
+The action will:
+- If `uv` is available: automatically install Python 3.12 if current version is < 3.10
+- If `uv` is NOT available: fail with an error message if Python version is < 3.10
 
 ### Java version issues
 
