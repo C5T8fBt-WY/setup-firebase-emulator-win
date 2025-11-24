@@ -117,9 +117,6 @@ jobs:
               run: |
                   Write-Host "Testing Python Functions emulator connectivity..." -ForegroundColor Cyan
 
-                  # Install test dependencies
-                  uv pip install pytest requests --system
-
                   # Test Firestore
                   try {
                     $response = Invoke-WebRequest -Uri "http://127.0.0.1:8080/" -Method Get -TimeoutSec 5
@@ -128,9 +125,11 @@ jobs:
                     Write-Error "Firestore Emulator not accessible"
                   }
 
-                  # Run pytest to test Python Functions
-                  cd tests/with-python-functions
-                  uv run pytest test_emulators.py -v
+                  # Install test dependencies and run tests using the venv created by the action
+                  cd tests/with-python-functions/functions
+                  uv pip install pytest requests
+                  cd ..
+                  uv run --directory functions pytest test_emulators.py -v
 
             - name: Cleanup Firebase Emulators
               if: always()
