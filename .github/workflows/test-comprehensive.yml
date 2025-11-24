@@ -2,7 +2,7 @@ name: Comprehensive Tests
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, dev]
   workflow_dispatch:
 
 jobs:
@@ -346,41 +346,4 @@ jobs:
           path: |
             tests/custom-config-name/emulator-*.log
 
-  test-no-cache:
-    runs-on: windows-latest
-    name: Test without Caching
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Firebase Emulator (No Cache)
-        uses: ./
-        with:
-          enable-cache: "false"
-          project-id: "demo-project"
-          emulators: "auth"
-          working-directory: "./tests/default-ports"
-          wait-time: "45"
-
-      - name: Verify Emulator Running
-        run: |
-          try {
-            $response = Invoke-WebRequest -Uri "http://127.0.0.1:9099" -UseBasicParsing -TimeoutSec 5
-            Write-Host "[OK] Emulator is running without cache" -ForegroundColor Green
-          } catch {
-            Write-Host "[ERROR] Emulator not responding" -ForegroundColor Red
-            exit 1
-          }
-        shell: pwsh
-
-      - name: Cleanup Firebase Emulators
-        if: always()
-        run: |
-          $service = Get-Service -Name FirebaseEmulator -ErrorAction SilentlyContinue
-          if ($service) {
-            nssm stop FirebaseEmulator
-            nssm remove FirebaseEmulator confirm
-            Write-Host "[OK] Service stopped and removed" -ForegroundColor Green
-          }
-        shell: pwsh

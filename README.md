@@ -8,8 +8,8 @@ A GitHub Action that sets up the Firebase Emulator Suite as a **background Windo
 ## Features
 
 - **Reliable Service Management**: Uses Windows Service for stable background process execution
-- **Built-in Caching**: Optional caching for `firebase-tools` (~1 minute vs 6+ minutes fresh install)
-- **Automatic Dependency Setup**: Handles Node.js and Java installation automatically
+- **Standalone Binary**: Uses Firebase CLI standalone binary (no Node.js dependency)
+- **Automatic Dependency Setup**: Handles Java installation automatically
 - **Health Checks**: Comprehensive port and HTTP response verification
 - **Flexible Configuration**: Customize versions, emulators, and wait times
 - **Detailed Diagnostics**: Health check summary with port status table
@@ -51,9 +51,7 @@ jobs:
         uses: C5T8fBt-WY/setup-firebase-emulator-win@v1
         with:
           firebase-tools-version: '13.24.1'
-          node-version: '20'
           java-version: '17'
-          enable-cache: 'true'
           project-id: 'my-project'
           emulators: 'auth,firestore,storage,functions'
           wait-time: '60'
@@ -69,18 +67,13 @@ jobs:
         shell: pwsh
 ```
 
-### Using Existing Node.js/Java
+### Using Existing Java
 
-If you've already set up Node.js or Java in previous steps:
+If you've already set up Java in previous steps:
 
 ```yaml
 steps:
   - uses: actions/checkout@v4
-
-  - name: Setup Node.js
-    uses: actions/setup-node@v4
-    with:
-      node-version: '20'
 
   - name: Setup Java
     uses: actions/setup-java@v4
@@ -91,7 +84,6 @@ steps:
   - name: Setup Firebase Emulator
     uses: C5T8fBt-WY/setup-firebase-emulator-win@v1
     with:
-      node-version: 'none'  # Skip Node.js setup
       java-version: 'none'  # Skip Java setup
       project-id: 'demo-project'
 ```
@@ -188,9 +180,7 @@ os.environ['FIREBASE_STORAGE_EMULATOR_HOST'] = '127.0.0.1:9299'
 | Input                    | Description                                                                                  | Required | Default           |
 | ------------------------ | -------------------------------------------------------------------------------------------- | -------- | ----------------- |
 | `firebase-tools-version` | Firebase Tools version to install                                                            | No       | `13.24.1`         |
-| `node-version`           | Node.js version to setup. Set to `none` to skip.                                             | No       | `20`              |
 | `java-version`           | Java version to setup (Temurin). Set to `none` to skip.                                      | No       | `17`              |
-| `enable-cache`           | Enable caching for firebase-tools installation                                               | No       | `true`            |
 | `project-id`             | Firebase project ID for emulator                                                             | No       | `demo-project`    |
 | `firebase-config-path`   | Path to firebase.json (absolute, workspace-relative with `./`, or working-directory-relative) | No       | `./firebase.json` |
 | `working-directory`      | Working directory containing firebase.json and related files (rules, functions/, etc.)       | No       | `.`               |
@@ -240,13 +230,12 @@ os.environ['FIREBASE_STORAGE_EMULATOR_HOST'] = '127.0.0.1:9299'
 
 1. **Validates Windows Runner**: Ensures action runs on Windows
 2. **Setup Dependencies**: 
-   - Installs Node.js (if not set to `none`)
    - Installs Java (if not set to `none`)
-   - Installs or restores Firebase Tools from cache
+   - Downloads Firebase CLI standalone binary
    - Installs Firebase Functions dependencies if present
 3. **Install NSSM**: Installs Non-Sucking Service Manager via Chocolatey
 4. **Configure Service**:
-   - Locates `firebase.js` binary
+   - Locates Firebase binary
    - Creates Windows service with proper working directory
    - Configures stdout/stderr logging
 5. **Start Service**: Launches Firebase Emulator service
@@ -319,18 +308,15 @@ Some emulators don't respond to plain HTTP GET requests:
 - Run your actual tests - they may work despite HTTP check failure
 - Consider using `skip-health-check: 'true'` if false positives occur
 
-### Node.js or Java version issues
+### Java version issues
 
-- Firebase CLI 13.24.1+ requires Node.js 18+
 - Most emulators require Java 11+
-- To use specific versions:
+- To use specific version:
   ```yaml
-  node-version: '20'
   java-version: '17'
   ```
-- To skip (use pre-installed versions):
+- To skip (use pre-installed version):
   ```yaml
-  node-version: 'none'
   java-version: 'none'
   ```
 
@@ -349,30 +335,22 @@ If a previous run failed to clean up:
   shell: pwsh
 ```
 
-### Cache issues
-
-To disable caching:
-```yaml
-enable-cache: 'false'
-```
-
-To clear cache, manually delete the cache in your repository settings or use a different cache key by changing the `firebase-tools-version`.
-
 ## Performance
 
-| Scenario                 | Time         |
-| ------------------------ | ------------ |
-| **First run (no cache)** | ~6-7 minutes |
-| **Cached run**           | ~2-3 minutes |
-| **Cache disabled**       | ~6-7 minutes |
+| Scenario       | Time         |
+| -------------- | ------------ |
+| **First run**  | ~2-3 minutes |
+| **Subsequent** | ~2-3 minutes |
+
+Binary download is fast and consistent (~30-60 seconds for Firebase CLI).
 
 ## Comparison with Other Approaches
 
-| Approach                          | Pros                                                  | Cons                                     |
-| --------------------------------- | ----------------------------------------------------- | ---------------------------------------- |
-| **NSSM Service** (this action)    | ✅ Reliable<br>✅ Proper lifecycle<br>✅ Background logs | ⚠️ Windows-only                           |
-| PowerShell `Start-Job`            | ✅ Simple<br>✅ No dependencies                         | ❌ Not persistent<br>❌ Cross-step issues  |
-| Direct `firebase emulators:start` | ✅ Simple                                              | ❌ Blocks workflow<br>❌ No parallel tests |
+| Approach                          | Pros                                                              | Cons                                     |
+| --------------------------------- | ----------------------------------------------------------------- | ---------------------------------------- |
+| **NSSM Service** (this action)    | ✅ Reliable<br>✅ Proper lifecycle<br>✅ Background logs<br>✅ No Node.js needed | ⚠️ Windows-only                           |
+| PowerShell `Start-Job`            | ✅ Simple<br>✅ No dependencies                                     | ❌ Not persistent<br>❌ Cross-step issues  |
+| Direct `firebase emulators:start` | ✅ Simple                                                          | ❌ Blocks workflow<br>❌ No parallel tests |
 
 ## Examples
 
