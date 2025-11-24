@@ -147,8 +147,6 @@ runs:
         $fileSize = (Get-Item $exePath).Length / 1MB
         Write-Host "[OK] Binary downloaded successfully" -ForegroundColor Green
         Write-Host "[TIMING] Download Time: $($downloadTime.ToString('F3'))s ($($fileSize.ToString('F2')) MB)" -ForegroundColor Magenta
-          Write-Host "[TIMING] Fallback Download Time: $($downloadTime.ToString('F3'))s ($($fileSize.ToString('F2')) MB)" -ForegroundColor Magenta
-        }
 
         $stepEnd = Get-Date
         $elapsed = ($stepEnd - $stepStart).TotalSeconds
