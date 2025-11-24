@@ -1,140 +1,140 @@
 name: "Performance Analysis Test"
 
 on:
-    workflow_dispatch:
-    push:
-        branches:
-            - debug/**
+  workflow_dispatch:
+  push:
+    branches:
+      - debug/**
 
 jobs:
-    test-performance-default:
-        name: "Performance Test - Default Ports"
-        runs-on: windows-latest
-        timeout-minutes: 15
+  test-performance-default:
+    name: "Performance Test - Default Ports"
+    runs-on: windows-latest
+    timeout-minutes: 15
 
-        steps:
-            - name: Checkout repository
-              uses: actions/checkout@v4
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-            - name: Setup Firebase Emulator (Default Ports)
-              uses: ./
-              with:
-                  working-directory: ./tests/default-ports
-                  project-id: demo-project
-                  wait-time: 60
+      - name: Setup Firebase Emulator (Default Ports)
+        uses: ./
+        with:
+          working-directory: ./tests/default-ports
+          project-id: demo-project
+          wait-time: 60
 
-            - name: Test Emulators
-              shell: pwsh
-              run: |
-                  Write-Host "Testing emulator connectivity..." -ForegroundColor Cyan
+      - name: Test Emulators
+        shell: pwsh
+        run: |
+          Write-Host "Testing emulator connectivity..." -ForegroundColor Cyan
 
-                  # Test Auth Emulator
-                  try {
-                    $authResponse = Invoke-RestMethod -Uri "http://127.0.0.1:9099/" -Method Get -TimeoutSec 5
-                    Write-Host "[OK] Auth Emulator is responding" -ForegroundColor Green
-                  } catch {
-                    Write-Error "Auth Emulator not accessible"
-                  }
+          # Test Auth Emulator
+          try {
+            $authResponse = Invoke-RestMethod -Uri "http://127.0.0.1:9099/" -Method Get -TimeoutSec 5
+            Write-Host "[OK] Auth Emulator is responding" -ForegroundColor Green
+          } catch {
+            Write-Error "Auth Emulator not accessible"
+          }
 
-                  # Test Firestore Emulator
-                  try {
-                    $firestoreResponse = Invoke-WebRequest -Uri "http://127.0.0.1:8080/" -Method Get -TimeoutSec 5
-                    Write-Host "[OK] Firestore Emulator is responding" -ForegroundColor Green
-                  } catch {
-                    Write-Error "Firestore Emulator not accessible"
-                  }
+          # Test Firestore Emulator
+          try {
+            $firestoreResponse = Invoke-WebRequest -Uri "http://127.0.0.1:8080/" -Method Get -TimeoutSec 5
+            Write-Host "[OK] Firestore Emulator is responding" -ForegroundColor Green
+          } catch {
+            Write-Error "Firestore Emulator not accessible"
+          }
 
-            - name: Cleanup Firebase Emulators
-              if: always()
-              shell: pwsh
-              run: |
-                  nssm stop FirebaseEmulator
-                  nssm remove FirebaseEmulator confirm
-                  Write-Host "[OK] Firebase Emulator service removed" -ForegroundColor Green
+      - name: Cleanup Firebase Emulators
+        if: always()
+        shell: pwsh
+        run: |
+          nssm stop FirebaseEmulator
+          nssm remove FirebaseEmulator confirm
+          Write-Host "[OK] Firebase Emulator service removed" -ForegroundColor Green
 
-    test-performance-with-functions:
-        name: "Performance Test - With Functions"
-        runs-on: windows-latest
-        timeout-minutes: 15
+  test-performance-with-functions:
+    name: "Performance Test - With Functions"
+    runs-on: windows-latest
+    timeout-minutes: 15
 
-        steps:
-            - name: Checkout repository
-              uses: actions/checkout@v4
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-            - name: Setup Firebase Emulator (With Functions)
-              uses: ./
-              with:
-                  working-directory: ./tests/with-functions
-                  project-id: demo-functions-project
-                  wait-time: 120
+      - name: Setup Firebase Emulator (With Functions)
+        uses: ./
+        with:
+          working-directory: ./tests/with-functions
+          project-id: demo-functions-project
+          wait-time: 120
 
-            - name: Test Emulators
-              shell: pwsh
-              run: |
-                  Write-Host "Testing emulator connectivity..." -ForegroundColor Cyan
+      - name: Test Emulators
+        shell: pwsh
+        run: |
+          Write-Host "Testing emulator connectivity..." -ForegroundColor Cyan
 
-                  # Test Firestore
-                  try {
-                    $response = Invoke-WebRequest -Uri "http://127.0.0.1:8080/" -Method Get -TimeoutSec 5
-                    Write-Host "[OK] Firestore Emulator is responding" -ForegroundColor Green
-                  } catch {
-                    Write-Error "Firestore Emulator not accessible"
-                  }
+          # Test Firestore
+          try {
+            $response = Invoke-WebRequest -Uri "http://127.0.0.1:8080/" -Method Get -TimeoutSec 5
+            Write-Host "[OK] Firestore Emulator is responding" -ForegroundColor Green
+          } catch {
+            Write-Error "Firestore Emulator not accessible"
+          }
 
-            - name: Cleanup Firebase Emulators
-              if: always()
-              shell: pwsh
-              run: |
-                  nssm stop FirebaseEmulator
-                  nssm remove FirebaseEmulator confirm
-                  Write-Host "[OK] Firebase Emulator service removed" -ForegroundColor Green
+      - name: Cleanup Firebase Emulators
+        if: always()
+        shell: pwsh
+        run: |
+          nssm stop FirebaseEmulator
+          nssm remove FirebaseEmulator confirm
+          Write-Host "[OK] Firebase Emulator service removed" -ForegroundColor Green
 
-    test-performance-python-functions:
-        name: "Performance Test - Python Functions"
-        runs-on: windows-latest
-        timeout-minutes: 20
+  test-performance-python-functions:
+    name: "Performance Test - Python Functions"
+    runs-on: windows-latest
+    timeout-minutes: 20
 
-        steps:
-            - name: Checkout repository
-              uses: actions/checkout@v4
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-            - name: Install uv
-              uses: astral-sh/setup-uv@v7
-              with:
-                  python-version: "3.12"
-                  enable-cache: true
-                  cache-dependency-glob: "**/requirements.txt"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: "**/requirements.txt"
 
-            - name: Setup Firebase Emulator (Python Functions)
-              uses: ./
-              with:
-                  working-directory: ./tests/with-python-functions
-                  project-id: demo-python-functions
-                  wait-time: 120
+      - name: Setup Firebase Emulator (Python Functions)
+        uses: ./
+        with:
+          working-directory: ./tests/with-python-functions
+          project-id: demo-python-functions
+          wait-time: 120
 
-            - name: Test Python Functions
-              shell: pwsh
-              run: |
-                  Write-Host "Testing Python Functions emulator connectivity..." -ForegroundColor Cyan
+      - name: Test Python Functions
+        shell: pwsh
+        run: |
+          Write-Host "Testing Python Functions emulator connectivity..." -ForegroundColor Cyan
 
-                  # Test Firestore
-                  try {
-                    $response = Invoke-WebRequest -Uri "http://127.0.0.1:8080/" -Method Get -TimeoutSec 5
-                    Write-Host "[OK] Firestore Emulator is responding" -ForegroundColor Green
-                  } catch {
-                    Write-Error "Firestore Emulator not accessible"
-                  }
+          # Test Firestore
+          try {
+            $response = Invoke-WebRequest -Uri "http://127.0.0.1:8080/" -Method Get -TimeoutSec 5
+            Write-Host "[OK] Firestore Emulator is responding" -ForegroundColor Green
+          } catch {
+            Write-Error "Firestore Emulator not accessible"
+          }
 
-                  # Install test dependencies into the venv created by the action
-                  cd tests/with-python-functions
-                  uv pip install --python functions/venv pytest requests
-                  # Run pytest from the test directory using the venv created by the action
-                  .\functions\venv\Scripts\python.exe -m pytest test_emulators.py -v
+          # Install test dependencies into the venv created by the action
+          cd tests/with-python-functions
+          uv pip install --python functions/venv pytest requests
+          # Run pytest from the test directory using the venv created by the action
+          .\functions\venv\Scripts\python.exe -m pytest test_emulators.py -v
 
-            - name: Cleanup Firebase Emulators
-              if: always()
-              shell: pwsh
-              run: |
-                  nssm stop FirebaseEmulator
-                  nssm remove FirebaseEmulator confirm
-                  Write-Host "[OK] Firebase Emulator service removed" -ForegroundColor Green
+      - name: Cleanup Firebase Emulators
+        if: always()
+        shell: pwsh
+        run: |
+          nssm stop FirebaseEmulator
+          nssm remove FirebaseEmulator confirm
+          Write-Host "[OK] Firebase Emulator service removed" -ForegroundColor Green

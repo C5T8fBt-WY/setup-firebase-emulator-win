@@ -177,16 +177,16 @@ os.environ['FIREBASE_STORAGE_EMULATOR_HOST'] = '127.0.0.1:9299'
 
 ## Inputs
 
-| Input                    | Description                                                                                  | Required | Default           |
-| ------------------------ | -------------------------------------------------------------------------------------------- | -------- | ----------------- |
-| `firebase-tools-version` | Firebase Tools version to install                                                            | No       | `13.24.1`         |
-| `java-version`           | Java version to setup (Temurin). Set to `none` to skip.                                      | No       | `17`              |
-| `project-id`             | Firebase project ID for emulator                                                             | No       | `demo-project`    |
+| Input                    | Description                                                                                   | Required | Default           |
+| ------------------------ | --------------------------------------------------------------------------------------------- | -------- | ----------------- |
+| `firebase-tools-version` | Firebase Tools version to install                                                             | No       | `13.24.1`         |
+| `java-version`           | Java version to setup (Temurin). Set to `none` to skip.                                       | No       | `17`              |
+| `project-id`             | Firebase project ID for emulator                                                              | No       | `demo-project`    |
 | `firebase-config-path`   | Path to firebase.json (absolute, workspace-relative with `./`, or working-directory-relative) | No       | `./firebase.json` |
-| `working-directory`      | Working directory containing firebase.json and related files (rules, functions/, etc.)       | No       | `.`               |
-| `emulators`              | Comma-separated list of emulators (e.g., `auth,firestore`). Empty = all from `firebase.json` | No       | `""` (all)        |
-| `wait-time`              | Seconds to wait after starting service before health checks                                  | No       | `60`              |
-| `skip-health-check`      | Skip health check verification (not recommended)                                             | No       | `false`           |
+| `working-directory`      | Working directory containing firebase.json and related files (rules, functions/, etc.)        | No       | `.`               |
+| `emulators`              | Comma-separated list of emulators (e.g., `auth,firestore`). Empty = all from `firebase.json`  | No       | `""` (all)        |
+| `wait-time`              | Seconds to wait after starting service before health checks                                   | No       | `60`              |
+| `skip-health-check`      | Skip health check verification (not recommended)                                              | No       | `false`           |
 
 ### Available Emulators
 
@@ -314,7 +314,9 @@ Some emulators don't respond to plain HTTP GET requests:
 
 **Firebase Functions for Python requires Python 3.10 or higher.** The default Python on Windows runners is 3.9, which is too old.
 
-**Recommended Setup (using uv):**
+**You must set up Python before using this action.** There are two recommended approaches:
+
+**Option 1 - Using uv (Recommended, Faster):**
 ```yaml
 steps:
   - uses: actions/checkout@v4
@@ -322,16 +324,16 @@ steps:
   - name: Install uv
     uses: astral-sh/setup-uv@v7
     with:
+      python-version: '3.12'  # Specify 3.10+ for Firebase Functions
       enable-cache: true
   
   - name: Setup Firebase Emulator
     uses: C5T8fBt-WY/setup-firebase-emulator-win@v1
     with:
       project-id: 'demo-project'
-      # uv will auto-install Python 3.12 if needed
 ```
 
-**Alternative (explicit Python setup):**
+**Option 2 - Using setup-python:**
 ```yaml
 steps:
   - uses: actions/checkout@v4
@@ -346,9 +348,7 @@ steps:
       project-id: 'demo-project'
 ```
 
-The action will:
-- If `uv` is available: automatically install Python 3.12 if current version is < 3.10
-- If `uv` is NOT available: fail with an error message if Python version is < 3.10
+**Note:** This action will check the Python version and fail with a clear error message if it's below 3.10.
 
 ### Java version issues
 
@@ -388,11 +388,11 @@ Binary download is fast and consistent (~30-60 seconds for Firebase CLI).
 
 ## Comparison with Other Approaches
 
-| Approach                          | Pros                                                              | Cons                                     |
-| --------------------------------- | ----------------------------------------------------------------- | ---------------------------------------- |
+| Approach                          | Pros                                                                         | Cons                                     |
+| --------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------- |
 | **NSSM Service** (this action)    | ✅ Reliable<br>✅ Proper lifecycle<br>✅ Background logs<br>✅ No Node.js needed | ⚠️ Windows-only                           |
-| PowerShell `Start-Job`            | ✅ Simple<br>✅ No dependencies                                     | ❌ Not persistent<br>❌ Cross-step issues  |
-| Direct `firebase emulators:start` | ✅ Simple                                                          | ❌ Blocks workflow<br>❌ No parallel tests |
+| PowerShell `Start-Job`            | ✅ Simple<br>✅ No dependencies                                                | ❌ Not persistent<br>❌ Cross-step issues  |
+| Direct `firebase emulators:start` | ✅ Simple                                                                     | ❌ Blocks workflow<br>❌ No parallel tests |
 
 ## Examples
 
