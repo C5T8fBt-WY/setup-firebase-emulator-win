@@ -228,12 +228,12 @@ runs:
             $pipStart = Get-Date
             cd $functionsDir
             
-            # Create venv with compatible Python
-            if (-not (Test-Path ".venv")) {
+            # Create venv with compatible Python (Firebase expects 'venv' directory name)
+            if (-not (Test-Path "venv")) {
               if ($pythonExe -eq "python3.12") {
-                uv venv --python 3.12
+                uv venv venv --python 3.12
               } else {
-                uv venv
+                uv venv venv
               }
             }
             
