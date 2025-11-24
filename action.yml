@@ -207,10 +207,17 @@ runs:
           # Check if uv is available (faster alternative to pip)
           $uvAvailable = Get-Command uv -ErrorAction SilentlyContinue
           if ($uvAvailable) {
-            Write-Host "[INFO] Using uv for faster installation" -ForegroundColor Cyan
-            uv pip install -r requirements.txt --system
+            Write-Host "[INFO] Using uv for virtual environment and dependency installation" -ForegroundColor Cyan
+            
+            # Create venv with uv
+            if (-not (Test-Path ".venv")) {
+              uv venv
+            }
+            
+            # Install dependencies into venv
+            uv pip install -r requirements.txt
           } else {
-            Write-Host "[INFO] Using pip for installation" -ForegroundColor Cyan
+            Write-Host "[INFO] Using pip for installation (consider using astral-sh/setup-uv action in your workflow for faster builds)" -ForegroundColor Cyan
             pip install -r requirements.txt
           }
           

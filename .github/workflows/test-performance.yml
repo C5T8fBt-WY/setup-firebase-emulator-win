@@ -88,3 +88,53 @@ jobs:
                   nssm stop FirebaseEmulator
                   nssm remove FirebaseEmulator confirm
                   Write-Host "[OK] Firebase Emulator service removed" -ForegroundColor Green
+
+    test-performance-python-functions:
+        name: "Performance Test - Python Functions"
+        runs-on: windows-latest
+        timeout-minutes: 20
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Install uv
+              uses: astral-sh/setup-uv@v7
+              with:
+                  enable-cache: true
+                  cache-dependency-glob: "**/requirements.txt"
+
+            - name: Setup Firebase Emulator (Python Functions)
+              uses: ./
+              with:
+                  working-directory: ./tests/with-python-functions
+                  project-id: demo-python-functions
+                  wait-time: 120
+
+            - name: Test Python Functions
+              shell: pwsh
+              run: |
+                  Write-Host "Testing Python Functions emulator connectivity..." -ForegroundColor Cyan
+
+                  # Install test dependencies
+                  uv pip install pytest requests --system
+
+                  # Test Firestore
+                  try {
+                    $response = Invoke-WebRequest -Uri "http://127.0.0.1:8080/" -Method Get -TimeoutSec 5
+                    Write-Host "[OK] Firestore Emulator is responding" -ForegroundColor Green
+                  } catch {
+                    Write-Error "Firestore Emulator not accessible"
+                  }
+
+                  # Run pytest to test Python Functions
+                  cd tests/with-python-functions
+                  uv run pytest test_emulators.py -v
+
+            - name: Cleanup Firebase Emulators
+              if: always()
+              shell: pwsh
+              run: |
+                  nssm stop FirebaseEmulator
+                  nssm remove FirebaseEmulator confirm
+                  Write-Host "[OK] Firebase Emulator service removed" -ForegroundColor Green

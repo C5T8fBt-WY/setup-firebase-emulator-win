@@ -1,0 +1,31 @@
+{
+    "emulators": {
+        "firestore": {
+            "port": 8080
+        },
+        "functions": {
+            "port": 5001
+        },
+        "hub": {
+            "port": 4400
+        },
+        "ui": {
+            "enabled": false
+        }
+    },
+    "firestore": {
+        "rules": "firestore.rules"
+    },
+    "functions": [
+        {
+            "source": "functions",
+            "codebase": "default",
+            "runtime": "python312",
+            "ignore": [
+                "__pycache__",
+                ".git",
+                ".venv"
+            ]
+        }
+    ]
+}
