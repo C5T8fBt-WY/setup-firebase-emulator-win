@@ -25,7 +25,7 @@ inputs:
   firebase-config-path:
     description: "Path to firebase.json (absolute, workspace-relative with ./ prefix, or working-directory-relative)"
     required: false
-    default: "./firebase.json"
+    default: "firebase.json"
 
   working-directory:
     description: "Working directory containing firebase.json and related files (firestore.rules, storage.rules, functions/, etc.)"
@@ -184,7 +184,7 @@ runs:
       run: |
         $stepStart = Get-Date
         Write-Host "[TIMING] Step Start: $($stepStart.ToString('HH:mm:ss.fff'))" -ForegroundColor Magenta
-        
+
         $workDir = "${{ inputs.working-directory }}"
         $functionsDir = Join-Path $workDir "functions"
         $packageJsonPath = Join-Path $functionsDir "package.json"
@@ -221,7 +221,7 @@ runs:
         } else {
           Write-Host "[INFO] No functions/package.json or functions/requirements.txt found, skipping..." -ForegroundColor Yellow
         }
-        
+
         $stepEnd = Get-Date
         $elapsed = ($stepEnd - $stepStart).TotalSeconds
         Write-Host "[TIMING] Step Duration: $($elapsed.ToString('F3'))s" -ForegroundColor Magenta
