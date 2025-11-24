@@ -59,14 +59,34 @@ outputs:
 runs:
   using: "composite"
   steps:
+    - name: Initialize Performance Tracking
+      shell: pwsh
+      run: |
+        $script:startTime = Get-Date
+        Write-Host "======================================" -ForegroundColor Magenta
+        Write-Host "Performance Tracking Enabled" -ForegroundColor Magenta
+        Write-Host "======================================" -ForegroundColor Magenta
+        Write-Host "Start Time: $($script:startTime.ToString('HH:mm:ss.fff'))" -ForegroundColor Cyan
+        Write-Host ""
+        
+        # Store start time in env
+        echo "ACTION_START_TIME=$($script:startTime.Ticks)" >> $env:GITHUB_ENV
+
     - name: Validate Windows Runner
       shell: pwsh
       run: |
+        $stepStart = Get-Date
+        Write-Host "[TIMING] Step Start: $($stepStart.ToString('HH:mm:ss.fff'))" -ForegroundColor Magenta
+        
         if ($env:RUNNER_OS -ne 'Windows') {
           Write-Error "This action only supports Windows runners"
           exit 1
         }
         Write-Host "[OK] Running on Windows: $env:RUNNER_OS" -ForegroundColor Green
+        
+        $stepEnd = Get-Date
+        $elapsed = ($stepEnd - $stepStart).TotalSeconds
+        Write-Host "[TIMING] Step Duration: $($elapsed.ToString('F3'))s" -ForegroundColor Magenta
 
     - name: Setup Java
       if: inputs.java-version != 'none'
@@ -79,8 +99,15 @@ runs:
       if: inputs.java-version != 'none'
       shell: pwsh
       run: |
+        $stepStart = Get-Date
+        Write-Host "[TIMING] Step Start: $($stepStart.ToString('HH:mm:ss.fff'))" -ForegroundColor Magenta
+        
         $javaVersion = java -version 2>&1 | Select-Object -First 1
         Write-Host "[OK] Java installed: $javaVersion" -ForegroundColor Green
+        
+        $stepEnd = Get-Date
+        $elapsed = ($stepEnd - $stepStart).TotalSeconds
+        Write-Host "[TIMING] Step Duration: $($elapsed.ToString('F3'))s" -ForegroundColor Magenta
 
     - name: Setup Firebase Binary Directory
       shell: pwsh
@@ -93,6 +120,8 @@ runs:
     - name: Download Firebase CLI Standalone Binary
       shell: pwsh
       run: |
+        $stepStart = Get-Date
+        Write-Host "[TIMING] Step Start: $($stepStart.ToString('HH:mm:ss.fff'))" -ForegroundColor Magenta
         Write-Host "Downloading Firebase CLI standalone binary v${{ inputs.firebase-tools-version }}..." -ForegroundColor Cyan
 
         $version = "${{ inputs.firebase-tools-version }}"
@@ -107,15 +136,29 @@ runs:
         }
 
         Write-Host "Downloading from: $downloadUrl" -ForegroundColor Gray
-
+        
+        $downloadStart = Get-Date
         try {
           Invoke-WebRequest -Uri $downloadUrl -OutFile $exePath -UseBasicParsing
+          $downloadEnd = Get-Date
+          $downloadTime = ($downloadEnd - $downloadStart).TotalSeconds
+          $fileSize = (Get-Item $exePath).Length / 1MB
           Write-Host "[OK] Binary downloaded successfully" -ForegroundColor Green
+          Write-Host "[TIMING] Download Time: $($downloadTime.ToString('F3'))s ($($fileSize.ToString('F2')) MB)" -ForegroundColor Magenta
         } catch {
           Write-Host "[WARN] Failed to download specific version, falling back to latest" -ForegroundColor Yellow
           $downloadUrl = "https://firebase.tools/bin/win/latest"
+          $downloadStart = Get-Date
           Invoke-WebRequest -Uri $downloadUrl -OutFile $exePath -UseBasicParsing
+          $downloadEnd = Get-Date
+          $downloadTime = ($downloadEnd - $downloadStart).TotalSeconds
+          $fileSize = (Get-Item $exePath).Length / 1MB
+          Write-Host "[TIMING] Fallback Download Time: $($downloadTime.ToString('F3'))s ($($fileSize.ToString('F2')) MB)" -ForegroundColor Magenta
         }
+        
+        $stepEnd = Get-Date
+        $elapsed = ($stepEnd - $stepStart).TotalSeconds
+        Write-Host "[TIMING] Total Step Duration: $($elapsed.ToString('F3'))s" -ForegroundColor Magenta
 
     - name: Add Firebase Binary to PATH
       shell: pwsh
@@ -139,32 +182,56 @@ runs:
     - name: Install Firebase Functions dependencies
       shell: pwsh
       run: |
+        $stepStart = Get-Date
+        Write-Host "[TIMING] Step Start: $($stepStart.ToString('HH:mm:ss.fff'))" -ForegroundColor Magenta
+        
         $workDir = "${{ inputs.working-directory }}"
         $functionsPath = Join-Path $workDir "functions\package.json"
 
         if (Test-Path $functionsPath) {
           Write-Host "Installing Firebase Functions dependencies..." -ForegroundColor Cyan
+          $npmStart = Get-Date
           cd (Join-Path $workDir "functions")
           npm install
+          $npmEnd = Get-Date
+          $npmTime = ($npmEnd - $npmStart).TotalSeconds
           Write-Host "[OK] Functions dependencies installed" -ForegroundColor Green
+          Write-Host "[TIMING] npm install Duration: $($npmTime.ToString('F3'))s" -ForegroundColor Magenta
         } else {
           Write-Host "[INFO] No functions/package.json found in working directory, skipping..." -ForegroundColor Yellow
         }
+        
+        $stepEnd = Get-Date
+        $elapsed = ($stepEnd - $stepStart).TotalSeconds
+        Write-Host "[TIMING] Step Duration: $($elapsed.ToString('F3'))s" -ForegroundColor Magenta
 
     - name: Install NSSM
       shell: pwsh
       run: |
+        $stepStart = Get-Date
+        Write-Host "[TIMING] Step Start: $($stepStart.ToString('HH:mm:ss.fff'))" -ForegroundColor Magenta
+        
         Write-Host "Installing NSSM (Non-Sucking Service Manager)..." -ForegroundColor Cyan
+        $chocoStart = Get-Date
         choco install nssm -y
+        $chocoEnd = Get-Date
+        $chocoTime = ($chocoEnd - $chocoStart).TotalSeconds
         Write-Host "[OK] NSSM installed" -ForegroundColor Green
+        Write-Host "[TIMING] choco install Duration: $($chocoTime.ToString('F3'))s" -ForegroundColor Magenta
+        
+        $stepEnd = Get-Date
+        $elapsed = ($stepEnd - $stepStart).TotalSeconds
+        Write-Host "[TIMING] Step Duration: $($elapsed.ToString('F3'))s" -ForegroundColor Magenta
 
     - name: Start Firebase Emulators as Windows Service
       id: start-service
       shell: pwsh
       run: |
+        $stepStart = Get-Date
         Write-Host "======================================" -ForegroundColor Cyan
         Write-Host "Starting Firebase Emulator Service" -ForegroundColor Cyan
         Write-Host "======================================" -ForegroundColor Cyan
+        Write-Host "[TIMING] Step Start: $($stepStart.ToString('HH:mm:ss.fff'))" -ForegroundColor Magenta
         Write-Host ""
 
         # Locate Firebase CLI binary
@@ -216,26 +283,50 @@ runs:
 
         # Install and configure Windows service using binary
         Write-Host "Installing service with Firebase binary..." -ForegroundColor Gray
+        $nssmInstallStart = Get-Date
         nssm install FirebaseEmulator $firebaseBin $argList
+        $nssmInstallEnd = Get-Date
+        $nssmInstallTime = ($nssmInstallEnd - $nssmInstallStart).TotalSeconds
+        Write-Host "[TIMING] NSSM Install: $($nssmInstallTime.ToString('F3'))s" -ForegroundColor Magenta
 
+        $nssmConfigStart = Get-Date
         nssm set FirebaseEmulator AppDirectory $workingDir
         nssm set FirebaseEmulator AppStdout "$workingDir\emulator-stdout.log"
         nssm set FirebaseEmulator AppStderr "$workingDir\emulator-stderr.log"
+        $nssmConfigEnd = Get-Date
+        $nssmConfigTime = ($nssmConfigEnd - $nssmConfigStart).TotalSeconds
+        Write-Host "[TIMING] NSSM Configuration: $($nssmConfigTime.ToString('F3'))s" -ForegroundColor Magenta
 
         # Start the service
         Write-Host "Starting service..." -ForegroundColor Yellow
+        $serviceStartTime = Get-Date
         nssm start FirebaseEmulator
+        $serviceStartEnd = Get-Date
+        $serviceStartDuration = ($serviceStartEnd - $serviceStartTime).TotalSeconds
+        Write-Host "[TIMING] Service Start Command: $($serviceStartDuration.ToString('F3'))s" -ForegroundColor Magenta
 
         Write-Host "[OK] Service start command issued" -ForegroundColor Green
         Write-Host ""
+        
+        $stepEnd = Get-Date
+        $elapsed = ($stepEnd - $stepStart).TotalSeconds
+        Write-Host "[TIMING] Total Step Duration: $($elapsed.ToString('F3'))s" -ForegroundColor Magenta
 
     - name: Wait for Service Initialization
       shell: pwsh
       run: |
+        $stepStart = Get-Date
+        Write-Host "[TIMING] Step Start: $($stepStart.ToString('HH:mm:ss.fff'))" -ForegroundColor Magenta
+        
         $waitTime = [int]"${{ inputs.wait-time }}"
         Write-Host "Waiting $waitTime seconds for emulators to initialize..." -ForegroundColor Yellow
+        Write-Host "[INFO] During this time, Firebase downloads and initializes emulator components" -ForegroundColor Cyan
         Start-Sleep -Seconds $waitTime
         Write-Host "[OK] Wait complete" -ForegroundColor Green
+        
+        $stepEnd = Get-Date
+        $elapsed = ($stepEnd - $stepStart).TotalSeconds
+        Write-Host "[TIMING] Step Duration: $($elapsed.ToString('F3'))s" -ForegroundColor Magenta
 
     - name: Check Service Status
       id: check-service
@@ -256,9 +347,11 @@ runs:
       if: inputs.skip-health-check != 'true'
       shell: pwsh
       run: |
+        $stepStart = Get-Date
         Write-Host "======================================" -ForegroundColor Cyan
         Write-Host "Emulator Health Check (via Hub)" -ForegroundColor Cyan
         Write-Host "======================================" -ForegroundColor Cyan
+        Write-Host "[TIMING] Step Start: $($stepStart.ToString('HH:mm:ss.fff'))" -ForegroundColor Magenta
         Write-Host ""
 
         # Get Hub port from firebase.json (default 4400)
@@ -350,3 +443,111 @@ runs:
           Write-Host "Check emulator-stdout.log and emulator-stderr.log for details." -ForegroundColor Yellow
           exit 1
         }
+        
+        $stepEnd = Get-Date
+        $elapsed = ($stepEnd - $stepStart).TotalSeconds
+        Write-Host ""
+        Write-Host "[TIMING] Health Check Duration: $($elapsed.ToString('F3'))s" -ForegroundColor Magenta
+
+    - name: Analyze Emulator Logs for Timing
+      shell: pwsh
+      run: |
+        $stepStart = Get-Date
+        Write-Host "======================================" -ForegroundColor Magenta
+        Write-Host "Emulator Component Download Analysis" -ForegroundColor Magenta
+        Write-Host "======================================" -ForegroundColor Magenta
+        Write-Host "[TIMING] Step Start: $($stepStart.ToString('HH:mm:ss.fff'))" -ForegroundColor Magenta
+        Write-Host ""
+        
+        $workingDir = "${{ inputs.working-directory }}"
+        if (-not [System.IO.Path]::IsPathRooted($workingDir)) {
+          $workingDir = Join-Path $PWD.Path $workingDir
+        }
+        
+        $stdoutLog = Join-Path $workingDir "emulator-stdout.log"
+        
+        if (Test-Path $stdoutLog) {
+          Write-Host "Analyzing emulator-stdout.log for component downloads..." -ForegroundColor Cyan
+          Write-Host ""
+          
+          # Parse log for download events
+          $logContent = Get-Content $stdoutLog -Raw
+          
+          # Look for download patterns
+          $downloadPattern = 'Downloading ([\w-]+).*?to.*?|already exists\.|Download complete'
+          $matches = [regex]::Matches($logContent, $downloadPattern)
+          
+          if ($matches.Count -gt 0) {
+            Write-Host "[INFO] Found emulator component activity:" -ForegroundColor Yellow
+            foreach ($match in $matches | Select-Object -First 20) {
+              Write-Host "  $($match.Value)" -ForegroundColor Gray
+            }
+          } else {
+            Write-Host "[INFO] No explicit download messages found" -ForegroundColor Yellow
+            Write-Host "[INFO] This likely means emulator components were already cached" -ForegroundColor Cyan
+          }
+          
+          Write-Host ""
+          Write-Host "Checking for cache directory..." -ForegroundColor Cyan
+          
+          # Check Firebase cache directory
+          $firebaseCacheDir = Join-Path $env:LOCALAPPDATA "firebase\emulators"
+          if (Test-Path $firebaseCacheDir) {
+            Write-Host "[INFO] Firebase emulator cache exists at:" -ForegroundColor Green
+            Write-Host "  $firebaseCacheDir" -ForegroundColor Gray
+            
+            $cacheFiles = Get-ChildItem -Path $firebaseCacheDir -Recurse -File | 
+              Select-Object Name, @{N='Size(MB)';E={[math]::Round($_.Length/1MB,2)}}, LastWriteTime |
+              Sort-Object 'Size(MB)' -Descending |
+              Select-Object -First 10
+            
+            Write-Host ""
+            Write-Host "Largest cached components:" -ForegroundColor Cyan
+            $cacheFiles | Format-Table -AutoSize
+            
+            $totalCacheSize = (Get-ChildItem -Path $firebaseCacheDir -Recurse -File | 
+              Measure-Object -Property Length -Sum).Sum / 1MB
+            Write-Host "Total cache size: $([math]::Round($totalCacheSize,2)) MB" -ForegroundColor Yellow
+          } else {
+            Write-Host "[INFO] No Firebase emulator cache directory found (first run)" -ForegroundColor Yellow
+          }
+          
+          Write-Host ""
+          Write-Host "Full emulator log (first 100 lines):" -ForegroundColor Cyan
+          Write-Host "-------------------------------------" -ForegroundColor Gray
+          Get-Content $stdoutLog | Select-Object -First 100 | ForEach-Object {
+            Write-Host $_ -ForegroundColor DarkGray
+          }
+        } else {
+          Write-Host "[WARN] emulator-stdout.log not found at $stdoutLog" -ForegroundColor Yellow
+        }
+        
+        $stepEnd = Get-Date
+        $elapsed = ($stepEnd - $stepStart).TotalSeconds
+        Write-Host ""
+        Write-Host "[TIMING] Log Analysis Duration: $($elapsed.ToString('F3'))s" -ForegroundColor Magenta
+
+    - name: Performance Summary
+      shell: pwsh
+      run: |
+        $endTime = Get-Date
+        $startTicks = [long]"${{ env.ACTION_START_TIME }}"
+        $startTime = [datetime]::new($startTicks)
+        $totalElapsed = ($endTime - $startTime).TotalSeconds
+        
+        Write-Host ""
+        Write-Host "======================================" -ForegroundColor Magenta
+        Write-Host "PERFORMANCE SUMMARY" -ForegroundColor Magenta
+        Write-Host "======================================" -ForegroundColor Magenta
+        Write-Host "Start Time: $($startTime.ToString('HH:mm:ss.fff'))" -ForegroundColor Cyan
+        Write-Host "End Time:   $($endTime.ToString('HH:mm:ss.fff'))" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "TOTAL ELAPSED TIME: $($totalElapsed.ToString('F3'))s" -ForegroundColor Green
+        Write-Host "======================================" -ForegroundColor Magenta
+        Write-Host ""
+        Write-Host "[INFO] Key observations:" -ForegroundColor Yellow
+        Write-Host "  - Check 'Download Firebase CLI' for binary download time" -ForegroundColor Gray
+        Write-Host "  - Check 'Install NSSM' for chocolatey install time" -ForegroundColor Gray
+        Write-Host "  - Check 'Wait for Service' - this is when emulators download components" -ForegroundColor Gray
+        Write-Host "  - Check emulator logs above for component-level timing details" -ForegroundColor Gray
+        Write-Host ""
