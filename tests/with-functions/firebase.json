@@ -9,6 +9,9 @@
         "functions": {
             "port": 5001
         },
+        "hub": {
+            "port": 4400
+        },
         "ui": {
             "enabled": false
         }
