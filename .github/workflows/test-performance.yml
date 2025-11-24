@@ -125,10 +125,9 @@ jobs:
                     Write-Error "Firestore Emulator not accessible"
                   }
 
-                  # Install test dependencies and run tests using the venv created by the action
-                  cd tests/with-python-functions/functions
-                  uv pip install pytest requests
-                  cd ..
+                  # Install test dependencies into the venv created by the action
+                  cd tests/with-python-functions
+                  uv pip install --python functions/venv pytest requests
                   # Run pytest from the test directory using the venv created by the action
                   .\functions\venv\Scripts\python.exe -m pytest test_emulators.py -v
 
