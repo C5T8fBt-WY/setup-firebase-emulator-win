@@ -128,14 +128,12 @@ runs:
         $binaryPath = "${{ env.FIREBASE_BINARY_PATH }}"
         $exePath = Join-Path $binaryPath "firebase.exe"
 
-        # Download Firebase CLI binary
-        # For latest: use official instant/latest CDN (recommended by Google)
-        # For specific versions: Firebase CLI doesn't support versioned instant URLs,
-        # so we use instant/latest for CI (always most reliable and up-to-date)
-        $downloadUrl = "https://firebase.tools/bin/win/instant/latest"
+        # Download Firebase CLI standalone binary
+        # Official CDN: https://firebase.tools/bin/{platform}/latest
+        $downloadUrl = "https://firebase.tools/bin/win/latest"
         
         if ($version -ne "latest" -and $version -ne "") {
-          Write-Host "[INFO] Specific version $version requested, but using latest from instant CDN for reliability" -ForegroundColor Cyan
+          Write-Host "[INFO] Specific version $version requested, but using latest for reliability" -ForegroundColor Cyan
         }
 
         Write-Host "Downloading from: $downloadUrl" -ForegroundColor Gray
