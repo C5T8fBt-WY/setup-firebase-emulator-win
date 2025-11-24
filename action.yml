@@ -167,20 +167,20 @@ runs:
       shell: pwsh
       run: |
         Write-Host "Downloading Firebase CLI standalone binary v${{ inputs.firebase-tools-version }}..." -ForegroundColor Cyan
-        
+
         $version = "${{ inputs.firebase-tools-version }}"
         $binaryPath = "${{ env.FIREBASE_BINARY_PATH }}"
         $exePath = Join-Path $binaryPath "firebase.exe"
-        
+
         # Download from GitHub releases (specific version or latest)
         if ($version -eq "latest" -or $version -eq "") {
           $downloadUrl = "https://firebase.tools/bin/win/latest"
         } else {
           $downloadUrl = "https://github.com/firebase/firebase-tools/releases/download/v$version/firebase-tools-win.exe"
         }
-        
+
         Write-Host "Downloading from: $downloadUrl" -ForegroundColor Gray
-        
+
         try {
           Invoke-WebRequest -Uri $downloadUrl -OutFile $exePath -UseBasicParsing
           Write-Host "[OK] Binary downloaded successfully" -ForegroundColor Green
@@ -202,7 +202,7 @@ runs:
       shell: pwsh
       run: |
         $installMethod = "${{ inputs.firebase-tools-install-method }}"
-        
+
         if ($installMethod -eq "binary") {
           $exePath = Join-Path "${{ env.FIREBASE_BINARY_PATH }}" "firebase.exe"
           if (Test-Path $exePath) {
@@ -351,7 +351,7 @@ runs:
           Write-Host "Installing service with npm method..." -ForegroundColor Gray
           nssm install FirebaseEmulator $nodePath $firebaseBin $argList
         }
-        
+
         nssm set FirebaseEmulator AppDirectory $workingDir
         nssm set FirebaseEmulator AppStdout "$workingDir\emulator-stdout.log"
         nssm set FirebaseEmulator AppStderr "$workingDir\emulator-stderr.log"

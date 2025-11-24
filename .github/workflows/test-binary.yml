@@ -1,140 +1,140 @@
 name: Test Binary Installation
 
 on:
-  workflow_dispatch:
-  push:
-    branches: [feature/binary-firebase-cli]
+    workflow_dispatch:
+    push:
+        branches: [feature/binary-firebase-cli]
 
 jobs:
-  test-binary-default:
-    runs-on: windows-latest
-    name: Test Binary with Default Ports
+    test-binary-default:
+        runs-on: windows-latest
+        name: Test Binary with Default Ports
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+            - name: Set up Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.11"
 
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install firebase-admin requests
-        shell: pwsh
+            - name: Install Python dependencies
+              run: |
+                  python -m pip install --upgrade pip
+                  pip install firebase-admin requests
+              shell: pwsh
 
-      - name: Setup Firebase Emulator (Binary Method)
-        uses: ./
-        with:
-          project-id: "demo-project"
-          firebase-tools-install-method: "binary"
-          emulators: "auth,firestore,storage"
-          working-directory: "./tests/default-ports"
-          wait-time: "60"
+            - name: Setup Firebase Emulator (Binary Method)
+              uses: ./
+              with:
+                  project-id: "demo-project"
+                  firebase-tools-install-method: "binary"
+                  emulators: "auth,firestore,storage"
+                  working-directory: "./tests/default-ports"
+                  wait-time: "60"
 
-      - name: Verify Node.js NOT installed
-        run: |
-          try {
-            $nodeVersion = node --version
-            Write-Host "[WARN] Node.js is installed: $nodeVersion (should be skipped)" -ForegroundColor Yellow
-          } catch {
-            Write-Host "[OK] Node.js not installed (as expected for binary method)" -ForegroundColor Green
-          }
-        shell: pwsh
+            - name: Verify Node.js NOT installed
+              run: |
+                  try {
+                    $nodeVersion = node --version
+                    Write-Host "[WARN] Node.js is installed: $nodeVersion (should be skipped)" -ForegroundColor Yellow
+                  } catch {
+                    Write-Host "[OK] Node.js not installed (as expected for binary method)" -ForegroundColor Green
+                  }
+              shell: pwsh
 
-      - name: Run Tests
-        run: |
-          Write-Host "Testing emulators with binary installation..." -ForegroundColor Cyan
-          cd tests/default-ports
-          python test_emulators.py
+            - name: Run Tests
+              run: |
+                  Write-Host "Testing emulators with binary installation..." -ForegroundColor Cyan
+                  cd tests/default-ports
+                  python test_emulators.py
 
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host "[SUCCESS] Binary test passed!" -ForegroundColor Green
-          } else {
-            Write-Host "[FAILED] Binary test failed!" -ForegroundColor Red
-            exit 1
-          }
-        shell: pwsh
+                  if ($LASTEXITCODE -eq 0) {
+                    Write-Host "[SUCCESS] Binary test passed!" -ForegroundColor Green
+                  } else {
+                    Write-Host "[FAILED] Binary test failed!" -ForegroundColor Red
+                    exit 1
+                  }
+              shell: pwsh
 
-      - name: Cleanup Firebase Emulators
-        if: always()
-        run: |
-          $service = Get-Service -Name FirebaseEmulator -ErrorAction SilentlyContinue
-          if ($service) {
-            nssm stop FirebaseEmulator
-            nssm remove FirebaseEmulator confirm
-            Write-Host "[OK] Service stopped and removed" -ForegroundColor Green
-          }
-        shell: pwsh
+            - name: Cleanup Firebase Emulators
+              if: always()
+              run: |
+                  $service = Get-Service -Name FirebaseEmulator -ErrorAction SilentlyContinue
+                  if ($service) {
+                    nssm stop FirebaseEmulator
+                    nssm remove FirebaseEmulator confirm
+                    Write-Host "[OK] Service stopped and removed" -ForegroundColor Green
+                  }
+              shell: pwsh
 
-      - name: Upload Emulator Logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: emulator-logs-binary-default
-          path: |
-            tests/default-ports/emulator-*.log
+            - name: Upload Emulator Logs
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: emulator-logs-binary-default
+                  path: |
+                      tests/default-ports/emulator-*.log
 
-  test-binary-with-cache:
-    runs-on: windows-latest
-    name: Test Binary with Caching
+    test-binary-with-cache:
+        runs-on: windows-latest
+        name: Test Binary with Caching
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+            - name: Set up Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.11"
 
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install firebase-admin
-        shell: pwsh
+            - name: Install Python dependencies
+              run: |
+                  python -m pip install --upgrade pip
+                  pip install firebase-admin
+              shell: pwsh
 
-      - name: Setup Firebase Emulator (Binary with Cache)
-        uses: ./
-        with:
-          project-id: "demo-project"
-          firebase-tools-install-method: "binary"
-          enable-cache: "true"
-          emulators: "auth"
-          working-directory: "./tests/default-ports"
-          wait-time: "45"
+            - name: Setup Firebase Emulator (Binary with Cache)
+              uses: ./
+              with:
+                  project-id: "demo-project"
+                  firebase-tools-install-method: "binary"
+                  enable-cache: "true"
+                  emulators: "auth"
+                  working-directory: "./tests/default-ports"
+                  wait-time: "45"
 
-      - name: Run Quick Auth Test
-        run: |
-          Write-Host "Testing Auth emulator only..." -ForegroundColor Cyan
-          cd tests/default-ports
-          python test_auth_only.py
+            - name: Run Quick Auth Test
+              run: |
+                  Write-Host "Testing Auth emulator only..." -ForegroundColor Cyan
+                  cd tests/default-ports
+                  python test_auth_only.py
 
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host "[SUCCESS] Binary cache test passed!" -ForegroundColor Green
-          } else {
-            Write-Host "[FAILED] Binary cache test failed!" -ForegroundColor Red
-            exit 1
-          }
-        shell: pwsh
+                  if ($LASTEXITCODE -eq 0) {
+                    Write-Host "[SUCCESS] Binary cache test passed!" -ForegroundColor Green
+                  } else {
+                    Write-Host "[FAILED] Binary cache test failed!" -ForegroundColor Red
+                    exit 1
+                  }
+              shell: pwsh
 
-      - name: Cleanup Firebase Emulators
-        if: always()
-        run: |
-          $service = Get-Service -Name FirebaseEmulator -ErrorAction SilentlyContinue
-          if ($service) {
-            nssm stop FirebaseEmulator
-            nssm remove FirebaseEmulator confirm
-            Write-Host "[OK] Service stopped and removed" -ForegroundColor Green
-          }
-        shell: pwsh
+            - name: Cleanup Firebase Emulators
+              if: always()
+              run: |
+                  $service = Get-Service -Name FirebaseEmulator -ErrorAction SilentlyContinue
+                  if ($service) {
+                    nssm stop FirebaseEmulator
+                    nssm remove FirebaseEmulator confirm
+                    Write-Host "[OK] Service stopped and removed" -ForegroundColor Green
+                  }
+              shell: pwsh
 
-      - name: Upload Emulator Logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: emulator-logs-binary-cache
-          path: |
-            tests/default-ports/emulator-*.log
+            - name: Upload Emulator Logs
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: emulator-logs-binary-cache
+                  path: |
+                      tests/default-ports/emulator-*.log
