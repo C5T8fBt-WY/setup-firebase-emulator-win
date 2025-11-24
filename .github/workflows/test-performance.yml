@@ -129,7 +129,8 @@ jobs:
                   cd tests/with-python-functions/functions
                   uv pip install pytest requests
                   cd ..
-                  uv run --directory functions pytest test_emulators.py -v
+                  # Run pytest from the test directory with the functions venv
+                  uv run --directory functions pytest ../test_emulators.py -v
 
             - name: Cleanup Firebase Emulators
               if: always()
