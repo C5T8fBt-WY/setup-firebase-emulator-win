@@ -12,8 +12,13 @@ inputs:
     required: false
     default: "13.24.1"
 
+  firebase-tools-install-method:
+    description: "Installation method: 'npm' (via Node.js) or 'binary' (standalone executable, skips Node setup)"
+    required: false
+    default: "npm"
+
   node-version:
-    description: "Node.js version to setup. Set to 'none' to use existing environment."
+    description: "Node.js version to setup. Set to 'none' to use existing environment. Ignored if install-method is 'binary'."
     required: false
     default: "20"
 
@@ -79,7 +84,7 @@ runs:
         Write-Host "[OK] Running on Windows: $env:RUNNER_OS" -ForegroundColor Green
 
     - name: Setup Node.js
-      if: inputs.node-version != 'none'
+      if: inputs.firebase-tools-install-method == 'npm' && inputs.node-version != 'none'
       uses: actions/setup-node@v4
       with:
         node-version: ${{ inputs.node-version }}
@@ -98,61 +103,127 @@ runs:
         $javaVersion = java -version 2>&1 | Select-Object -First 1
         Write-Host "[OK] Java installed: $javaVersion" -ForegroundColor Green
 
-    - name: Set cache path
-      if: inputs.enable-cache == 'true'
+    # ========== NPM Installation Path ==========
+    - name: Set cache path (NPM)
+      if: inputs.firebase-tools-install-method == 'npm' && inputs.enable-cache == 'true'
       shell: pwsh
       run: |
         $cachePath = Join-Path $HOME ".firebase-cache"
         echo "FIREBASE_CACHE_PATH=$cachePath" >> $env:GITHUB_ENV
         Write-Host "Cache path set to: $cachePath" -ForegroundColor Cyan
 
-    - name: Cache firebase-tools
-      if: inputs.enable-cache == 'true'
-      id: cache-firebase
+    - name: Cache firebase-tools (NPM)
+      if: inputs.firebase-tools-install-method == 'npm' && inputs.enable-cache == 'true'
+      id: cache-firebase-npm
       uses: actions/cache@v4
       with:
         path: ${{ env.FIREBASE_CACHE_PATH }}
-        key: firebase-tools-${{ runner.os }}-${{ inputs.firebase-tools-version }}
+        key: firebase-tools-npm-${{ runner.os }}-${{ inputs.firebase-tools-version }}
 
-    - name: Install firebase-tools (with cache)
-      if: inputs.enable-cache == 'true' && steps.cache-firebase.outputs.cache-hit != 'true'
+    - name: Install firebase-tools via NPM (with cache)
+      if: inputs.firebase-tools-install-method == 'npm' && inputs.enable-cache == 'true' && steps.cache-firebase-npm.outputs.cache-hit != 'true'
       shell: pwsh
       run: |
         Write-Host "Installing firebase-tools@${{ inputs.firebase-tools-version }} to ${{ env.FIREBASE_CACHE_PATH }}..." -ForegroundColor Cyan
         npm install -g firebase-tools@${{ inputs.firebase-tools-version }} --prefix "${{ env.FIREBASE_CACHE_PATH }}"
         Write-Host "[OK] Firebase Tools installed with cache enabled" -ForegroundColor Green
 
-    - name: Add firebase-tools to PATH (cached)
-      if: inputs.enable-cache == 'true'
+    - name: Add firebase-tools to PATH (NPM cached)
+      if: inputs.firebase-tools-install-method == 'npm' && inputs.enable-cache == 'true'
       shell: pwsh
       run: |
         $binPath = "${{ env.FIREBASE_CACHE_PATH }}"
         echo "$binPath" >> $env:GITHUB_PATH
         Write-Host "Added $binPath to PATH" -ForegroundColor Cyan
 
-    - name: Install firebase-tools (without cache)
-      if: inputs.enable-cache != 'true'
+    - name: Install firebase-tools via NPM (without cache)
+      if: inputs.firebase-tools-install-method == 'npm' && inputs.enable-cache != 'true'
       shell: pwsh
       run: |
         Write-Host "Installing firebase-tools@${{ inputs.firebase-tools-version }} globally..." -ForegroundColor Cyan
         npm install -g firebase-tools@${{ inputs.firebase-tools-version }}
         Write-Host "[OK] Firebase Tools installed globally (cache disabled)" -ForegroundColor Green
 
+    # ========== Binary Installation Path ==========
+    - name: Set cache path (Binary)
+      if: inputs.firebase-tools-install-method == 'binary'
+      shell: pwsh
+      run: |
+        $cachePath = Join-Path $HOME ".firebase-binary"
+        echo "FIREBASE_BINARY_PATH=$cachePath" >> $env:GITHUB_ENV
+        New-Item -ItemType Directory -Force -Path $cachePath | Out-Null
+        Write-Host "Binary path set to: $cachePath" -ForegroundColor Cyan
+
+    - name: Cache firebase-tools binary
+      if: inputs.firebase-tools-install-method == 'binary' && inputs.enable-cache == 'true'
+      id: cache-firebase-binary
+      uses: actions/cache@v4
+      with:
+        path: ${{ env.FIREBASE_BINARY_PATH }}
+        key: firebase-tools-binary-${{ runner.os }}-${{ inputs.firebase-tools-version }}
+
+    - name: Download Firebase CLI standalone binary
+      if: inputs.firebase-tools-install-method == 'binary' && (inputs.enable-cache != 'true' || steps.cache-firebase-binary.outputs.cache-hit != 'true')
+      shell: pwsh
+      run: |
+        Write-Host "Downloading Firebase CLI standalone binary v${{ inputs.firebase-tools-version }}..." -ForegroundColor Cyan
+        
+        $version = "${{ inputs.firebase-tools-version }}"
+        $binaryPath = "${{ env.FIREBASE_BINARY_PATH }}"
+        $exePath = Join-Path $binaryPath "firebase.exe"
+        
+        # Download from GitHub releases (specific version or latest)
+        if ($version -eq "latest" -or $version -eq "") {
+          $downloadUrl = "https://firebase.tools/bin/win/latest"
+        } else {
+          $downloadUrl = "https://github.com/firebase/firebase-tools/releases/download/v$version/firebase-tools-win.exe"
+        }
+        
+        Write-Host "Downloading from: $downloadUrl" -ForegroundColor Gray
+        
+        try {
+          Invoke-WebRequest -Uri $downloadUrl -OutFile $exePath -UseBasicParsing
+          Write-Host "[OK] Binary downloaded successfully" -ForegroundColor Green
+        } catch {
+          Write-Host "[WARN] Failed to download specific version, falling back to latest" -ForegroundColor Yellow
+          $downloadUrl = "https://firebase.tools/bin/win/latest"
+          Invoke-WebRequest -Uri $downloadUrl -OutFile $exePath -UseBasicParsing
+        }
+
+    - name: Add Firebase binary to PATH
+      if: inputs.firebase-tools-install-method == 'binary'
+      shell: pwsh
+      run: |
+        $binPath = "${{ env.FIREBASE_BINARY_PATH }}"
+        echo "$binPath" >> $env:GITHUB_PATH
+        Write-Host "Added $binPath to PATH" -ForegroundColor Cyan
+
     - name: Verify firebase-tools
       shell: pwsh
       run: |
-        if ("${{ inputs.enable-cache }}" -eq "true") {
+        $installMethod = "${{ inputs.firebase-tools-install-method }}"
+        
+        if ($installMethod -eq "binary") {
+          $exePath = Join-Path "${{ env.FIREBASE_BINARY_PATH }}" "firebase.exe"
+          if (Test-Path $exePath) {
+            $version = & $exePath --version
+            Write-Host "[OK] Firebase CLI (binary) version: $version" -ForegroundColor Green
+          } else {
+            Write-Error "Firebase binary not found at $exePath"
+            exit 1
+          }
+        } elseif ("${{ inputs.enable-cache }}" -eq "true") {
           $exePath = Join-Path "${{ env.FIREBASE_CACHE_PATH }}" "firebase.cmd"
           if (Test-Path $exePath) {
             $version = & $exePath --version
-            Write-Host "[OK] Firebase CLI version: $version" -ForegroundColor Green
+            Write-Host "[OK] Firebase CLI (npm) version: $version" -ForegroundColor Green
           } else {
             Write-Error "Firebase executable not found at $exePath"
             exit 1
           }
         } else {
           $version = firebase --version
-          Write-Host "[OK] Firebase CLI version: $version" -ForegroundColor Green
+          Write-Host "[OK] Firebase CLI (npm) version: $version" -ForegroundColor Green
         }
 
     - name: Install Firebase Functions dependencies
@@ -195,28 +266,40 @@ runs:
 
         # Locate firebase.js
         $firebaseDir = Split-Path -Parent $firebaseCmd
-        $possiblePaths = @(
-          (Join-Path $firebaseDir "node_modules\firebase-tools\lib\bin\firebase.js"),
-          "$env:APPDATA\npm\node_modules\firebase-tools\lib\bin\firebase.js",
-          "$env:USERPROFILE\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js"
-        )
-
-        # If cache is enabled, add cache path
-        if ("${{ inputs.enable-cache }}" -eq "true") {
-          $possiblePaths += "${{ env.FIREBASE_CACHE_PATH }}\node_modules\firebase-tools\lib\bin\firebase.js"
-        }
-
+        $installMethod = "${{ inputs.firebase-tools-install-method }}"
         $firebaseBin = $null
-        foreach ($path in $possiblePaths) {
-          if (Test-Path $path) {
-            $firebaseBin = $path
-            break
-          }
-        }
 
-        if (-not $firebaseBin) {
-          Write-Error "Could not find firebase.js"
-          exit 1
+        if ($installMethod -eq "binary") {
+          # For binary installation, use the .exe directly
+          $firebaseBin = Join-Path "${{ env.FIREBASE_BINARY_PATH }}" "firebase.exe"
+          if (-not (Test-Path $firebaseBin)) {
+            Write-Error "Could not find firebase.exe at $firebaseBin"
+            exit 1
+          }
+        } else {
+          # For npm installation, find firebase.js
+          $possiblePaths = @(
+            (Join-Path $firebaseDir "node_modules\firebase-tools\lib\bin\firebase.js"),
+            "$env:APPDATA\npm\node_modules\firebase-tools\lib\bin\firebase.js",
+            "$env:USERPROFILE\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js"
+          )
+
+          # If cache is enabled, add cache path
+          if ("${{ inputs.enable-cache }}" -eq "true") {
+            $possiblePaths += "${{ env.FIREBASE_CACHE_PATH }}\node_modules\firebase-tools\lib\bin\firebase.js"
+          }
+
+          foreach ($path in $possiblePaths) {
+            if (Test-Path $path) {
+              $firebaseBin = $path
+              break
+            }
+          }
+
+          if (-not $firebaseBin) {
+            Write-Error "Could not find firebase.js"
+            exit 1
+          }
         }
 
         # Resolve working directory (absolute path)
@@ -259,7 +342,16 @@ runs:
         Write-Host ""
 
         # Install and configure Windows service
-        nssm install FirebaseEmulator $nodePath $firebaseBin $argList
+        if ($installMethod -eq "binary") {
+          # Binary: Run firebase.exe directly
+          Write-Host "Installing service with binary method..." -ForegroundColor Gray
+          nssm install FirebaseEmulator $firebaseBin $argList
+        } else {
+          # NPM: Run via Node.js
+          Write-Host "Installing service with npm method..." -ForegroundColor Gray
+          nssm install FirebaseEmulator $nodePath $firebaseBin $argList
+        }
+        
         nssm set FirebaseEmulator AppDirectory $workingDir
         nssm set FirebaseEmulator AppStdout "$workingDir\emulator-stdout.log"
         nssm set FirebaseEmulator AppStderr "$workingDir\emulator-stderr.log"
