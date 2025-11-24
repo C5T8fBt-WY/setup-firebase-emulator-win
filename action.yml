@@ -8,9 +8,9 @@ branding:
 
 inputs:
   firebase-tools-version:
-    description: "Firebase Tools version to install"
+    description: "Firebase Tools version (note: action always uses latest from firebase.tools/bin/win/instant/latest for reliability)"
     required: false
-    default: "13.24.1"
+    default: "latest"
 
   java-version:
     description: "Java version to setup (Temurin). Set to 'none' to use existing environment."
@@ -128,32 +128,25 @@ runs:
         $binaryPath = "${{ env.FIREBASE_BINARY_PATH }}"
         $exePath = Join-Path $binaryPath "firebase.exe"
 
-        # Download from official Firebase Tools CDN (instant/latest is the most reliable)
-        if ($version -eq "latest" -or $version -eq "") {
-          $downloadUrl = "https://firebase.tools/bin/win/instant/latest"
-        } else {
-          # For specific versions, try official CDN first, fall back to GitHub releases
-          $downloadUrl = "https://firebase.tools/bin/win/instant/v$version"
+        # Download Firebase CLI binary
+        # For latest: use official instant/latest CDN (recommended by Google)
+        # For specific versions: Firebase CLI doesn't support versioned instant URLs,
+        # so we use instant/latest for CI (always most reliable and up-to-date)
+        $downloadUrl = "https://firebase.tools/bin/win/instant/latest"
+        
+        if ($version -ne "latest" -and $version -ne "") {
+          Write-Host "[INFO] Specific version $version requested, but using latest from instant CDN for reliability" -ForegroundColor Cyan
         }
 
         Write-Host "Downloading from: $downloadUrl" -ForegroundColor Gray
 
         $downloadStart = Get-Date
-        try {
-          Invoke-WebRequest -Uri $downloadUrl -OutFile $exePath -UseBasicParsing
-          $downloadEnd = Get-Date
-          $downloadTime = ($downloadEnd - $downloadStart).TotalSeconds
-          $fileSize = (Get-Item $exePath).Length / 1MB
-          Write-Host "[OK] Binary downloaded successfully" -ForegroundColor Green
-          Write-Host "[TIMING] Download Time: $($downloadTime.ToString('F3'))s ($($fileSize.ToString('F2')) MB)" -ForegroundColor Magenta
-        } catch {
-          Write-Host "[WARN] Failed to download from CDN, falling back to instant/latest" -ForegroundColor Yellow
-          $downloadUrl = "https://firebase.tools/bin/win/instant/latest"
-          $downloadStart = Get-Date
-          Invoke-WebRequest -Uri $downloadUrl -OutFile $exePath -UseBasicParsing
-          $downloadEnd = Get-Date
-          $downloadTime = ($downloadEnd - $downloadStart).TotalSeconds
-          $fileSize = (Get-Item $exePath).Length / 1MB
+        Invoke-WebRequest -Uri $downloadUrl -OutFile $exePath -UseBasicParsing
+        $downloadEnd = Get-Date
+        $downloadTime = ($downloadEnd - $downloadStart).TotalSeconds
+        $fileSize = (Get-Item $exePath).Length / 1MB
+        Write-Host "[OK] Binary downloaded successfully" -ForegroundColor Green
+        Write-Host "[TIMING] Download Time: $($downloadTime.ToString('F3'))s ($($fileSize.ToString('F2')) MB)" -ForegroundColor Magenta
           Write-Host "[TIMING] Fallback Download Time: $($downloadTime.ToString('F3'))s ($($fileSize.ToString('F2')) MB)" -ForegroundColor Magenta
         }
 
