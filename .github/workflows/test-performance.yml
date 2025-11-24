@@ -1,0 +1,90 @@
+name: "Performance Analysis Test"
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - debug/**
+
+jobs:
+  test-performance-default:
+    name: "Performance Test - Default Ports"
+    runs-on: windows-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Firebase Emulator (Default Ports)
+        uses: ./
+        with:
+          working-directory: ./tests/default-ports
+          project-id: demo-project
+          wait-time: 60
+
+      - name: Test Emulators
+        shell: pwsh
+        run: |
+          Write-Host "Testing emulator connectivity..." -ForegroundColor Cyan
+          
+          # Test Auth Emulator
+          try {
+            $authResponse = Invoke-RestMethod -Uri "http://127.0.0.1:9099/" -Method Get -TimeoutSec 5
+            Write-Host "[OK] Auth Emulator is responding" -ForegroundColor Green
+          } catch {
+            Write-Error "Auth Emulator not accessible"
+          }
+          
+          # Test Firestore Emulator
+          try {
+            $firestoreResponse = Invoke-WebRequest -Uri "http://127.0.0.1:8080/" -Method Get -TimeoutSec 5
+            Write-Host "[OK] Firestore Emulator is responding" -ForegroundColor Green
+          } catch {
+            Write-Error "Firestore Emulator not accessible"
+          }
+
+      - name: Cleanup Firebase Emulators
+        if: always()
+        shell: pwsh
+        run: |
+          nssm stop FirebaseEmulator
+          nssm remove FirebaseEmulator confirm
+          Write-Host "[OK] Firebase Emulator service removed" -ForegroundColor Green
+
+  test-performance-with-functions:
+    name: "Performance Test - With Functions"
+    runs-on: windows-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Firebase Emulator (With Functions)
+        uses: ./
+        with:
+          working-directory: ./tests/with-functions
+          project-id: demo-functions-project
+          wait-time: 60
+
+      - name: Test Emulators
+        shell: pwsh
+        run: |
+          Write-Host "Testing emulator connectivity..." -ForegroundColor Cyan
+          
+          # Test Firestore
+          try {
+            $response = Invoke-WebRequest -Uri "http://127.0.0.1:8080/" -Method Get -TimeoutSec 5
+            Write-Host "[OK] Firestore Emulator is responding" -ForegroundColor Green
+          } catch {
+            Write-Error "Firestore Emulator not accessible"
+          }
+
+      - name: Cleanup Firebase Emulators
+        if: always()
+        shell: pwsh
+        run: |
+          nssm stop FirebaseEmulator
+          nssm remove FirebaseEmulator confirm
+          Write-Host "[OK] Firebase Emulator service removed" -ForegroundColor Green
