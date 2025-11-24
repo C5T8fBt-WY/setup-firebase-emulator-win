@@ -128,11 +128,12 @@ runs:
         $binaryPath = "${{ env.FIREBASE_BINARY_PATH }}"
         $exePath = Join-Path $binaryPath "firebase.exe"
 
-        # Download from GitHub releases (specific version or latest)
+        # Download from official Firebase Tools CDN (instant/latest is the most reliable)
         if ($version -eq "latest" -or $version -eq "") {
-          $downloadUrl = "https://firebase.tools/bin/win/latest"
+          $downloadUrl = "https://firebase.tools/bin/win/instant/latest"
         } else {
-          $downloadUrl = "https://github.com/firebase/firebase-tools/releases/download/v$version/firebase-tools-win.exe"
+          # For specific versions, try official CDN first, fall back to GitHub releases
+          $downloadUrl = "https://firebase.tools/bin/win/instant/v$version"
         }
 
         Write-Host "Downloading from: $downloadUrl" -ForegroundColor Gray
@@ -146,8 +147,8 @@ runs:
           Write-Host "[OK] Binary downloaded successfully" -ForegroundColor Green
           Write-Host "[TIMING] Download Time: $($downloadTime.ToString('F3'))s ($($fileSize.ToString('F2')) MB)" -ForegroundColor Magenta
         } catch {
-          Write-Host "[WARN] Failed to download specific version, falling back to latest" -ForegroundColor Yellow
-          $downloadUrl = "https://firebase.tools/bin/win/latest"
+          Write-Host "[WARN] Failed to download from CDN, falling back to instant/latest" -ForegroundColor Yellow
+          $downloadUrl = "https://firebase.tools/bin/win/instant/latest"
           $downloadStart = Get-Date
           Invoke-WebRequest -Uri $downloadUrl -OutFile $exePath -UseBasicParsing
           $downloadEnd = Get-Date
