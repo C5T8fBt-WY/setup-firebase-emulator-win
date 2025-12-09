@@ -1,13 +1,29 @@
 {
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "venv",
+        ".git",
+        "firebase-debug.log",
+        "firestore-debug.log",
+        "ui-debug.log"
+      ]
+    }
+  ],
   "emulators": {
     "auth": {
-      "port": 9099
+      "port": 19099
     },
     "firestore": {
-      "port": 8080
+      "port": 18080
     },
     "functions": {
-      "port": 5001
+      "port": 15001
     }
   }
 }

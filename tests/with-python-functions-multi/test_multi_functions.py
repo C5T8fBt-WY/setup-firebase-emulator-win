@@ -9,14 +9,15 @@ import requests
 from firebase_admin import credentials, initialize_app, auth, firestore
 
 # Set emulator environment variables
-os.environ['FIRESTORE_EMULATOR_HOST'] = 'localhost:8080'
-os.environ['FIREBASE_AUTH_EMULATOR_HOST'] = 'localhost:9099'
+os.environ['FIRESTORE_EMULATOR_HOST'] = 'localhost:18080'
+os.environ['FIREBASE_AUTH_EMULATOR_HOST'] = 'localhost:19099'
 
 # Initialize Firebase Admin with mock credentials for emulator
 @pytest.fixture(scope='module', autouse=True)
 def setup_firebase():
     """Initialize Firebase Admin SDK."""
-    if not len(initialize_app._apps):
+    from firebase_admin import _apps
+    if not len(_apps):
         # Use mock credentials for emulator
         mock_cred = {
             "type": "service_account",
@@ -88,15 +89,24 @@ def test_call_get_account_info_function():
             'uid': uid
         })
         
-        # Get auth token
+        # Get custom token and exchange for ID token
         custom_token = auth.create_custom_token(uid)
         
+        # Exchange custom token for ID token using Auth emulator REST API
+        exchange_url = 'http://localhost:19099/identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=fake-api-key'
+        exchange_payload = {
+            'token': custom_token.decode(),
+            'returnSecureToken': True
+        }
+        exchange_response = requests.post(exchange_url, json=exchange_payload)
+        id_token = exchange_response.json()['idToken']
+        
         # Call the Cloud Function
-        # URL format: http://localhost:5001/{project-id}/{region}/{function-name}
-        function_url = 'http://localhost:5001/demo-test/us-central1/getAccountInfo'
+        # URL format: http://localhost:{port}/{project-id}/{region}/{function-name}
+        function_url = 'http://localhost:15001/demo-test/us-central1/getAccountInfo'
         
         headers = {
-            'Authorization': f'Bearer {custom_token.decode()}',
+            'Authorization': f'Bearer {id_token}',
             'Content-Type': 'application/json'
         }
         
