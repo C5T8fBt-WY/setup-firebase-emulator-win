@@ -69,20 +69,41 @@ def test_auth_and_firestore_integration():
     Test Auth + Firestore integration like StA2BLE-Cloud does.
     This mimics the getAccountInfo flow: create user, get token, call function that reads Firestore.
     """
-    import firebase_admin
-    from firebase_admin import auth, credentials, firestore
     import os
+    import tempfile
+    import json
     
-    # Set emulator environment variables BEFORE initializing Firebase Admin
-    # This tells Admin SDK to use emulators and skip credential validation
+    # Set emulator environment variables FIRST, before importing firebase modules
     os.environ['FIRESTORE_EMULATOR_HOST'] = '127.0.0.1:8080'
     os.environ['FIREBASE_AUTH_EMULATOR_HOST'] = '127.0.0.1:9099'
     os.environ['FIREBASE_USE_EMULATOR'] = 'true'
     os.environ['GCLOUD_PROJECT'] = 'demo-python-functions'
     
-    # Initialize Firebase Admin with NO credentials when using emulators
+    # Create mock service account credentials file
+    mock_credentials = {
+        "type": "service_account",
+        "project_id": "demo-python-functions",
+        "private_key_id": "fake-key",
+        "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC0GUvJzOoJqaLI\nNSG8zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\nzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\nzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\nzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\nAgMBAAECggEAH/jQhgfkR8nQOhF3t7asdXcU1QhVRlkqLaF2jczzzzzzzzzzzzzz\nzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\nzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\nzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\nzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\n-----END PRIVATE KEY-----\n",
+        "client_email": "test@demo-python-functions.iam.gserviceaccount.com",
+        "client_id": "123456789",
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token"
+    }
+    
+    # Write to temp file
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        json.dump(mock_credentials, f)
+        temp_cred_path = f.name
+    
+    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = temp_cred_path
+    
+    # NOW import firebase_admin (after env vars are set)
+    import firebase_admin
+    from firebase_admin import auth, firestore
+    
+    # Initialize Firebase Admin
     if not firebase_admin._apps:
-        # When emulator env vars are set, Admin SDK doesn't require real credentials
         firebase_admin.initialize_app(options={
             'projectId': 'demo-python-functions',
         })
