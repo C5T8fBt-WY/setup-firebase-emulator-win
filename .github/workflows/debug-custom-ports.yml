@@ -1,0 +1,103 @@
+name: Debug Custom Ports
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/debug-custom-ports.yml'
+      - 'tests/sta2ble-custom-ports/**'
+
+jobs:
+  test-custom-ports:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+      
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Install Python dependencies
+        working-directory: tests/sta2ble-custom-ports
+        run: |
+          python -m pip install firebase-admin requests
+      
+      - name: Start emulators with custom ports
+        working-directory: tests/sta2ble-custom-ports
+        run: |
+          Write-Host "=== Starting Firebase Emulators with Custom Ports ===" -ForegroundColor Cyan
+          Start-Process -NoNewWindow firebase -ArgumentList "emulators:start --project=demo-sta2ble-ports" -PassThru
+          Write-Host "Waiting for emulators to start..."
+          Start-Sleep -Seconds 10
+      
+      - name: Check which ports are actually listening
+        run: |
+          Write-Host "`n=== Port Connectivity Check ===" -ForegroundColor Cyan
+          
+          Write-Host "`nCustom ports (from firebase.json):"
+          $customAuth = Test-NetConnection -ComputerName 127.0.0.1 -Port 17641 -InformationLevel Quiet -WarningAction SilentlyContinue
+          Write-Host "  17641 (Auth): $customAuth" -ForegroundColor $(if ($customAuth) { 'Green' } else { 'Red' })
+          
+          $customFirestore = Test-NetConnection -ComputerName 127.0.0.1 -Port 17644 -InformationLevel Quiet -WarningAction SilentlyContinue
+          Write-Host "  17644 (Firestore): $customFirestore" -ForegroundColor $(if ($customFirestore) { 'Green' } else { 'Red' })
+          
+          Write-Host "`nDefault ports:"
+          $defaultAuth = Test-NetConnection -ComputerName 127.0.0.1 -Port 9099 -InformationLevel Quiet -WarningAction SilentlyContinue
+          Write-Host "  9099 (Auth): $defaultAuth" -ForegroundColor $(if ($defaultAuth) { 'Green' } else { 'Red' })
+          
+          $defaultFirestore = Test-NetConnection -ComputerName 127.0.0.1 -Port 8080 -InformationLevel Quiet -WarningAction SilentlyContinue
+          Write-Host "  8080 (Firestore): $defaultFirestore" -ForegroundColor $(if ($defaultFirestore) { 'Green' } else { 'Red' })
+          
+          Write-Host "`nHub port:"
+          $hub = Test-NetConnection -ComputerName 127.0.0.1 -Port 4400 -InformationLevel Quiet -WarningAction SilentlyContinue
+          Write-Host "  4400 (Hub): $hub" -ForegroundColor $(if ($hub) { 'Green' } else { 'Red' })
+      
+      - name: Test Python connection to custom ports
+        working-directory: tests/sta2ble-custom-ports
+        env:
+          FIREBASE_AUTH_EMULATOR_HOST: "127.0.0.1:17641"
+          FIRESTORE_EMULATOR_HOST: "127.0.0.1:17644"
+        run: |
+          Write-Host "`n=== Python Connection Test (Custom Ports) ===" -ForegroundColor Cyan
+          python quick_test.py
+        continue-on-error: true
+      
+      - name: Test Python connection to default ports
+        working-directory: tests/sta2ble-custom-ports
+        env:
+          FIREBASE_AUTH_EMULATOR_HOST: "127.0.0.1:9099"
+          FIRESTORE_EMULATOR_HOST: "127.0.0.1:8080"
+        run: |
+          Write-Host "`n=== Python Connection Test (Default Ports) ===" -ForegroundColor Cyan
+          python quick_test.py
+        continue-on-error: true
+      
+      - name: Show emulator logs
+        if: always()
+        run: |
+          Write-Host "`n=== Firestore Debug Log ===" -ForegroundColor Cyan
+          Get-Content tests/sta2ble-custom-ports/firestore-debug.log -ErrorAction SilentlyContinue | Select-Object -Last 50
+      
+      - name: Cleanup
+        if: always()
+        run: |
+          Stop-Process -Name "node","java" -Force -ErrorAction SilentlyContinue
