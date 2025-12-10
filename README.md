@@ -350,6 +350,81 @@ steps:
 
 **Note:** This action will check the Python version and fail with a clear error message if it's below 3.10.
 
+### Using firebase-admin Python SDK with Emulators
+
+**The Firebase Admin SDK requires credentials even when using emulators.** If you're using `firebase-admin` in your Python code/tests, you need to use mock credentials:
+
+```python
+import firebase_admin
+from firebase_admin import credentials
+from google.auth import credentials as google_credentials
+
+# Mock credential classes for emulator testing
+class MockGoogleCredential(google_credentials.Credentials):
+    """Mock Google authentication credential for emulator testing."""
+    
+    def __init__(self):
+        super().__init__()
+        self._token = 'mock-token'
+        self.expiry = None
+    
+    @property
+    def valid(self):
+        return True
+    
+    @property
+    def token(self):
+        return self._token
+    
+    @token.setter
+    def token(self, value):
+        self._token = value
+    
+    def refresh(self, request):
+        import time
+        self.token = f'mock-token-{int(time.time())}'
+    
+    @property
+    def service_account_email(self):
+        return 'mock-email@your-project.iam.gserviceaccount.com'
+
+
+class MockFirebaseCredential(credentials.Base):
+    """Mock Firebase credential for emulator testing."""
+    
+    def __init__(self):
+        self._g_credential = MockGoogleCredential()
+    
+    def get_credential(self):
+        return self._g_credential
+
+
+# Initialize Firebase Admin with mock credentials
+if not firebase_admin._apps:
+    firebase_admin.initialize_app(
+        MockFirebaseCredential(),
+        options={'projectId': 'your-project-id'}
+    )
+```
+
+**Important:** Set emulator environment variables BEFORE importing firebase_admin modules:
+
+```python
+import os
+
+# Set BEFORE importing firebase_admin.auth or firebase_admin.firestore
+os.environ['FIRESTORE_EMULATOR_HOST'] = '127.0.0.1:8080'
+os.environ['FIREBASE_AUTH_EMULATOR_HOST'] = '127.0.0.1:9099'
+
+# NOW import
+import firebase_admin
+from firebase_admin import auth, firestore
+```
+
+**Why is this needed?** Even though emulators don't validate credentials, the Firebase Admin SDK still attempts to load them on initialization. Using `credential=None` is not sufficient - you need the mock credential classes shown above.
+
+For a complete working example, see [tests/with-python-functions/test_emulators.py](tests/with-python-functions/test_emulators.py) in this repository.
+
 ### Java version issues
 
 - Most emulators require Java 11+
