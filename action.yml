@@ -392,10 +392,23 @@ runs:
         
         # Add emulator hosts
         $envVars += "FIRESTORE_EMULATOR_HOST=localhost:$firestorePort"
+        $envVars += "FIREBASE_FIRESTORE_EMULATOR_ADDRESS=localhost:$firestorePort"
         $envVars += "FIREBASE_AUTH_EMULATOR_HOST=localhost:$authPort"
         $envVars += "FIREBASE_STORAGE_EMULATOR_HOST=localhost:$storagePort"
         $envVars += "FIREBASE_DATABASE_EMULATOR_HOST=localhost:$databasePort"
         $envVars += "PUBSUB_EMULATOR_HOST=localhost:$pubsubPort"
+        
+        # Create dummy credentials to satisfy Google Cloud SDKs that require them even when using emulators
+        $dummyCredsPath = Join-Path $workingDir "dummy-credentials.json"
+        $dummyCredsContent = @{
+            type = "service_account"
+            project_id = $projectId
+            private_key = "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDZ\n-----END PRIVATE KEY-----\n"
+            client_email = "firebase-adminsdk-dummy@$projectId.iam.gserviceaccount.com"
+            client_id = "1234567890"
+        } | ConvertTo-Json
+        $dummyCredsContent | Out-File -FilePath $dummyCredsPath -Encoding ascii
+        $envVars += "GOOGLE_APPLICATION_CREDENTIALS=$dummyCredsPath"
         
         Write-Host "Setting AppEnvironmentExtra with $($envVars.Count) variables" -ForegroundColor Gray
         nssm set FirebaseEmulator AppEnvironmentExtra $envVars
