@@ -78,3 +78,61 @@ def debug_env(req: https_fn.Request) -> https_fn.Response:
     import os
     import json
     return https_fn.Response(json.dumps(dict(os.environ)), mimetype="application/json")
+
+@https_fn.on_call()
+def get_account_info(req: https_fn.CallableRequest):
+    """
+    Test function that mimics StA2BLE-Cloud's getAccountInfo.
+    Requires auth and reads from Firestore.
+    """
+    import traceback
+    import json
+    
+    try:
+        # Verify authentication (like StA2BLE-Cloud does)
+        if not req.auth:
+            raise https_fn.HttpsError(
+                code=https_fn.FunctionsErrorCode.UNAUTHENTICATED,
+                message="Authentication required"
+            )
+        
+        uid = req.auth.uid
+        data = req.data
+        account_id = data.get('accountId')
+        
+        if not account_id:
+            raise https_fn.HttpsError(
+                code=https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
+                message="accountId is required"
+            )
+        
+        # Read from Firestore (like StA2BLE-Cloud does)
+        from firebase_admin import firestore
+        db = firestore.client()
+        account_ref = db.collection('accounts').document(account_id)
+        account_doc = account_ref.get()
+        
+        if not account_doc.exists:
+            raise https_fn.HttpsError(
+                code=https_fn.FunctionsErrorCode.NOT_FOUND,
+                message=f"Account {account_id} not found"
+            )
+        
+        account_data = account_doc.to_dict()
+        
+        return {
+            "accountId": account_id,
+            "tickets": account_data.get('tickets', 0),
+            "offlineQuota": account_data.get('offlineQuota', 0),
+            "authUid": uid
+        }
+        
+    except https_fn.HttpsError:
+        raise
+    except Exception as e:
+        error_trace = traceback.format_exc()
+        print(f"[get_account_info] ERROR: {error_trace}")
+        raise https_fn.HttpsError(
+            code=https_fn.FunctionsErrorCode.INTERNAL,
+            message=f"Internal error: {str(e)}"
+        )
