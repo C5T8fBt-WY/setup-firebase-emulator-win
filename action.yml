@@ -199,11 +199,8 @@ runs:
             $minor = [int]$matches[2]
             
             if ($major -lt 3 -or ($major -eq 3 -and $minor -lt 10)) {
-              Write-Host "[ERROR] Python $pythonVersion is too old for firebase-functions (requires 3.10+)" -ForegroundColor Red
-              Write-Host "[ERROR] Please use one of these actions in your workflow before this action:" -ForegroundColor Red
-              Write-Host "  - astral-sh/setup-uv@v7 with python-version: '3.12' (recommended, faster)" -ForegroundColor Yellow
-              Write-Host "  - actions/setup-python@v5 with python-version: '3.12'" -ForegroundColor Yellow
-              exit 1
+              Write-Host "[WARN] Current Python version ($pythonVersion) is too old for firebase-functions (requires 3.10+)" -ForegroundColor Yellow
+              Write-Host "[INFO] Attempting to use 'uv' to install a compatible Python version..." -ForegroundColor Cyan
             }
           }
           
@@ -217,7 +214,9 @@ runs:
             
             # Create venv (Firebase expects 'venv' directory name on Windows)
             if (-not (Test-Path "venv")) {
-              uv venv venv
+              # Explicitly request Python 3.12 if creating a new venv
+              # This handles the case where system python is too old
+              uv venv venv --python 3.12
             }
             
             # Install dependencies into venv
@@ -228,6 +227,15 @@ runs:
             Write-Host "[OK] Python functions dependencies installed" -ForegroundColor Green
             Write-Host "[TIMING] uv install Duration: $($pipTime.ToString('F3'))s" -ForegroundColor Magenta
           } else {
+            # Fallback to pip - now we must enforce the version check strictly
+            if ($major -lt 3 -or ($major -eq 3 -and $minor -lt 10)) {
+               Write-Host "[ERROR] Python $pythonVersion is too old and 'uv' is not available." -ForegroundColor Red
+               Write-Host "[ERROR] Please use one of these actions in your workflow before this action:" -ForegroundColor Red
+               Write-Host "  - astral-sh/setup-uv@v7 with python-version: '3.12' (recommended, faster)" -ForegroundColor Yellow
+               Write-Host "  - actions/setup-python@v5 with python-version: '3.12'" -ForegroundColor Yellow
+               exit 1
+            }
+
             Write-Host "[INFO] Using pip for installation (consider using astral-sh/setup-uv action for faster builds)" -ForegroundColor Cyan
             
             $pipStart = Get-Date
