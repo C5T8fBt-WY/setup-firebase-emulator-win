@@ -41,15 +41,31 @@ jobs:
         run: |
           python -m pip install firebase-admin requests
       
-      - name: Start emulators with custom ports
+      - name: Download NSSM
+        run: |
+          $nssmUrl = "https://nssm.cc/release/nssm-2.24.zip"
+          $nssmZip = "nssm.zip"
+          Invoke-WebRequest -Uri $nssmUrl -OutFile $nssmZip
+          Expand-Archive -Path $nssmZip -DestinationPath .
+          $nssmPath = Join-Path (Get-Location) "nssm-2.24\win64\nssm.exe"
+          echo $nssmPath | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      
+      - name: Start emulators with NSSM
         working-directory: tests/sta2ble-custom-ports
         run: |
-          Write-Host "=== Starting Firebase Emulators with Custom Ports ===" -ForegroundColor Cyan
-          Start-Job -ScriptBlock {
-            Set-Location "D:\a\setup-firebase-emulator-win\setup-firebase-emulator-win\tests\sta2ble-custom-ports"
-            firebase emulators:start --project=demo-sta2ble-ports
-          }
-          Write-Host "Waiting for emulators to start..."
+          Write-Host "=== Installing Firebase Emulator as Service ===" -ForegroundColor Cyan
+          $firebasePath = (Get-Command firebase).Source
+          Write-Host "Firebase CLI: $firebasePath"
+          
+          nssm install FirebaseEmulator "$firebasePath" "emulators:start" "--project=demo-sta2ble-ports"
+          nssm set FirebaseEmulator AppDirectory (Get-Location)
+          nssm set FirebaseEmulator AppStdout "emulator-stdout.log"
+          nssm set FirebaseEmulator AppStderr "emulator-stderr.log"
+          
+          Write-Host "`nStarting service..."
+          nssm start FirebaseEmulator
+          
+          Write-Host "Waiting for emulators to initialize..."
           Start-Sleep -Seconds 15
       
       - name: Check which ports are actually listening
@@ -96,11 +112,20 @@ jobs:
       
       - name: Show emulator logs
         if: always()
+        working-directory: tests/sta2ble-custom-ports
         run: |
+          Write-Host "`n=== Emulator Stdout ===" -ForegroundColor Cyan
+          Get-Content emulator-stdout.log -ErrorAction SilentlyContinue | Select-Object -Last 100
+          
+          Write-Host "`n=== Emulator Stderr ===" -ForegroundColor Cyan
+          Get-Content emulator-stderr.log -ErrorAction SilentlyContinue | Select-Object -Last 50
+          
           Write-Host "`n=== Firestore Debug Log ===" -ForegroundColor Cyan
-          Get-Content tests/sta2ble-custom-ports/firestore-debug.log -ErrorAction SilentlyContinue | Select-Object -Last 50
+          Get-Content firestore-debug.log -ErrorAction SilentlyContinue | Select-Object -Last 50
       
       - name: Cleanup
         if: always()
         run: |
+          nssm stop FirebaseEmulator
+          nssm remove FirebaseEmulator confirm
           Stop-Process -Name "node","java" -Force -ErrorAction SilentlyContinue
