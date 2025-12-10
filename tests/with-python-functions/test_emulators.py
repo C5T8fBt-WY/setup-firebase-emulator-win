@@ -73,35 +73,19 @@ def test_auth_and_firestore_integration():
     from firebase_admin import auth, credentials, firestore
     import os
     
-    # Initialize Firebase Admin with emulator settings
-    # For emulators, we need some credentials even if fake
+    # Set emulator environment variables BEFORE initializing Firebase Admin
+    # This tells Admin SDK to use emulators and skip credential validation
+    os.environ['FIRESTORE_EMULATOR_HOST'] = '127.0.0.1:8080'
+    os.environ['FIREBASE_AUTH_EMULATOR_HOST'] = '127.0.0.1:9099'
+    os.environ['FIREBASE_USE_EMULATOR'] = 'true'
+    os.environ['GCLOUD_PROJECT'] = 'demo-python-functions'
+    
+    # Initialize Firebase Admin with NO credentials when using emulators
     if not firebase_admin._apps:
-        # Set environment variable for mock credentials (required by Firestore client even with emulator)
-        fake_creds = {
-            "type": "service_account",
-            "project_id": "demo-python-functions",
-            "private_key_id": "fake",
-            "private_key": "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA2a2rwY/4notYPXXcjRKPQMB2R7EqnFM+IhqdJE8Kl2nNEwKD\ngEjNQgQexf3xXx0hYqZpNlxzrKzXhhzXPK6sE+P9qHSXJRPCBrARgBKwD2FUVQT4\npLIxUx7OxU7N5DjWRQz2I2GKF3UtJBPLqPqpN0oROPM9/+SLXNJPmXEgCzKkBBcg\ncvC7ySPqL+Ju7xQnXBOY1pu+0kEJiFcQBwXvGlZCgqrYD2Q2p8F2xLBp+Mc32VnZ\nDfm8vgC8cRgZMVT+OuDqFp1Y2vXTqVa5nOQOOw8XHCJW7vP93kJNBdS+7JwQjTnN\n8gY3pCJL3kqfYgPaYT+J2K7SYNZpHpv+xQIDAQABAoIBABkWl4T3+tKPlJ3Txcfz\n6wq7s+YM+qgU2hMhm/PXLjd2T6Qdx6OcTr6m8QKGzhDqB0dWvxT2F5vJNBBj4yPh\nAwLZk0mqZB6xfGqNPO6E4A3BqGKr2M4y9nKDDxl3EhJ7FMVU3E4YqVQOvJqXqX6Y\nmqpZnSGsKL1NHC9o8z0tR8KeBnNZT9LMPrGCjU9U2xvwwxA+q6JbYo3HZNRZqYUf\naQkM7oqvqQKBgQD1aYTbV9DRLqZi0pLkVHGHMqWtTprVJpXZNQDqVm7HPFZqNQEy\n4kX0YeLJDX0IQPFPvCGqGZ4HWJQk2A3EQKBQD+qxZLmnOpHxdXwPYfT3kLHGHZFU\nqwKBgQDguI2Y/R5qn2K3T7QqUQkXNqT5P1KhvVWtXPY0qrLJGQKBgQCrECvjXOWl\niXQBZQNhwTwVBKJ6tQ8CgYEAwL+HNxM=\n-----END RSA PRIVATE KEY-----\n",
-            "client_email": "fake@demo-python-functions.iam.gserviceaccount.com",
-            "client_id": "12345",
-            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-            "token_uri": "https://oauth2.googleapis.com/token",
-            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs"
-        }
-        import json
-        import tempfile
-        # Write fake credentials to temp file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-            json.dump(fake_creds, f)
-            os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = f.name
-            
+        # When emulator env vars are set, Admin SDK doesn't require real credentials
         firebase_admin.initialize_app(options={
             'projectId': 'demo-python-functions',
         })
-    
-    # Set emulator environment variables for admin SDK
-    os.environ['FIRESTORE_EMULATOR_HOST'] = '127.0.0.1:8080'
-    os.environ['FIREBASE_AUTH_EMULATOR_HOST'] = '127.0.0.1:9099'
     
     try:
         # Step 1: Create test user in Auth emulator
