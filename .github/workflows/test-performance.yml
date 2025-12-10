@@ -21,7 +21,6 @@ jobs:
         with:
           working-directory: ./tests/default-ports
           project-id: demo-project
-          wait-time: 60
 
       - name: Test Emulators
         shell: pwsh

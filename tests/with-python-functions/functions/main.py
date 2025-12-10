@@ -1,3 +1,14 @@
+import os
+import sys
+
+print("--- PYTHON PROCESS STARTUP ---")
+print(f"Python version: {sys.version}")
+print("Environment variables:")
+for k, v in sorted(os.environ.items()):
+    if "FIREBASE" in k or "FIRESTORE" in k or "GOOGLE" in k or "PUBSUB" in k:
+        print(f"  {k}={v}")
+print("------------------------------")
+
 from firebase_functions import https_fn
 from firebase_admin import initialize_app
 
