@@ -29,6 +29,8 @@ def test_python_functions_emulator():
             # Test Firestore access from function
             response = requests.get(
                 "http://127.0.0.1:5001/demo-python-functions/us-central1/check_firestore", timeout=5)
+            if response.status_code != 200:
+                print(f"check_firestore failed with {response.status_code}: {response.text}")
             assert response.status_code == 200
             print("[OK] check_firestore function is responding")
 
