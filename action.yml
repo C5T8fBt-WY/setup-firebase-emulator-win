@@ -399,6 +399,7 @@ runs:
         $envVars += "PUBSUB_EMULATOR_HOST=localhost:$pubsubPort"
         
         # Create dummy credentials to satisfy Google Cloud SDKs that require them even when using emulators
+        # Added token_uri to satisfy google-auth library requirements
         $dummyCredsPath = Join-Path $workingDir "dummy-credentials.json"
         $dummyCredsContent = @{
             type = "service_account"
