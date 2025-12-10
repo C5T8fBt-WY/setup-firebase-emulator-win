@@ -397,9 +397,8 @@ runs:
         $envVars += "FIREBASE_DATABASE_EMULATOR_HOST=127.0.0.1:$databasePort"
         $envVars += "PUBSUB_EMULATOR_HOST=127.0.0.1:$pubsubPort"
         
-        $envString = $envVars -join " "
-        Write-Host "Setting AppEnvironmentExtra: $envString" -ForegroundColor Gray
-        nssm set FirebaseEmulator AppEnvironmentExtra $envString
+        Write-Host "Setting AppEnvironmentExtra with $($envVars.Count) variables" -ForegroundColor Gray
+        nssm set FirebaseEmulator AppEnvironmentExtra $envVars
 
         # Start the service
         Write-Host "Starting service..." -ForegroundColor Yellow
