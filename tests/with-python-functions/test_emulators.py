@@ -30,8 +30,19 @@ def test_python_functions_emulator():
             response = requests.get(
                 "http://127.0.0.1:5001/demo-python-functions/us-central1/check_firestore", timeout=5)
             if response.status_code != 200:
-                print(f"check_firestore failed with {response.status_code}: {response.text}")
-            assert response.status_code == 200
+                print(f"\n[ERROR] check_firestore failed with {response.status_code}")
+                print(f"Response body: {response.text}")
+                try:
+                    error_data = response.json()
+                    print(f"Error type: {error_data.get('type')}")
+                    print(f"Error message: {error_data.get('message')}")
+                    print(f"Environment variables received by Python:")
+                    for k, v in error_data.get('env', {}).items():
+                        print(f"  {k}={v}")
+                    print(f"\nFull traceback:\n{error_data.get('traceback')}")
+                except:
+                    pass
+            assert response.status_code == 200, f"check_firestore failed: {response.text}"
             print("[OK] check_firestore function is responding")
 
             break

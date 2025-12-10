@@ -31,17 +31,46 @@ def echo(req: https_fn.Request) -> https_fn.Response:
 def check_firestore(req: https_fn.Request) -> https_fn.Response:
     """Check if Firestore is accessible."""
     import os
-    env_vars = {k: v for k, v in os.environ.items() if "FIRE" in k or "GOOGLE" in k}
-    print(f"Environment: {env_vars}")
+    import traceback
+    import json
+    
+    # Collect ALL environment variables for diagnosis
+    env_vars = {k: v for k, v in os.environ.items() if "FIRE" in k or "GOOGLE" in k or "PUBSUB" in k}
+    print(f"[check_firestore] Environment variables: {env_vars}")
     
     try:
         from firebase_admin import firestore
+        print("[check_firestore] Attempting to create Firestore client...")
         db = firestore.client()
+        print("[check_firestore] Firestore client created successfully")
+        
         doc_ref = db.collection("test").document("test_doc")
-        doc_ref.set({"status": "ok"})
-        return https_fn.Response(f"Firestore OK. Env: {env_vars}")
+        print(f"[check_firestore] Writing to document: {doc_ref.path}")
+        doc_ref.set({"status": "ok", "timestamp": firestore.SERVER_TIMESTAMP})
+        print("[check_firestore] Document written successfully")
+        
+        return https_fn.Response(
+            json.dumps({
+                "status": "success",
+                "message": "Firestore OK",
+                "env": env_vars
+            }),
+            mimetype="application/json"
+        )
     except Exception as e:
-        return https_fn.Response(f"Firestore Error: {str(e)}. Env: {env_vars}", status=500)
+        error_trace = traceback.format_exc()
+        print(f"[check_firestore] ERROR: {error_trace}")
+        return https_fn.Response(
+            json.dumps({
+                "status": "error", 
+                "message": str(e),
+                "type": type(e).__name__,
+                "traceback": error_trace,
+                "env": env_vars
+            }),
+            status=500,
+            mimetype="application/json"
+        )
 
 @https_fn.on_request()
 def debug_env(req: https_fn.Request) -> https_fn.Response:
