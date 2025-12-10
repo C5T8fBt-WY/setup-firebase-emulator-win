@@ -345,6 +345,54 @@ runs:
         $nssmConfigTime = ($nssmConfigEnd - $nssmConfigStart).TotalSeconds
         Write-Host "[TIMING] NSSM Configuration: $($nssmConfigTime.ToString('F3'))s" -ForegroundColor Magenta
 
+        # Calculate and set environment variables for Python functions
+        # This fixes the issue where Python functions cannot connect to emulators on Windows
+        Write-Host "Configuring environment variables for Python functions..." -ForegroundColor Cyan
+        
+        $envVars = @()
+        $envVars += "FIREBASE_PROJECT_ID=$projectId"
+        $envVars += "GOOGLE_CLOUD_PROJECT=$projectId"
+        
+        # Parse firebase.json for ports
+        $firestorePort = 8080
+        $authPort = 9099
+        $storagePort = 9199
+        $databasePort = 9000
+        $pubsubPort = 8085
+        
+        # Resolve config path for reading
+        $resolvedConfigPath = $configPath
+        if (-not [System.IO.Path]::IsPathRooted($resolvedConfigPath)) {
+            $resolvedConfigPath = Join-Path $workingDir $resolvedConfigPath
+        }
+        
+        if (Test-Path $resolvedConfigPath) {
+            try {
+                Write-Host "Reading ports from $resolvedConfigPath" -ForegroundColor Gray
+                $config = Get-Content $resolvedConfigPath | ConvertFrom-Json
+                if ($config.emulators.firestore.port) { $firestorePort = $config.emulators.firestore.port }
+                if ($config.emulators.auth.port) { $authPort = $config.emulators.auth.port }
+                if ($config.emulators.storage.port) { $storagePort = $config.emulators.storage.port }
+                if ($config.emulators.database.port) { $databasePort = $config.emulators.database.port }
+                if ($config.emulators.pubsub.port) { $pubsubPort = $config.emulators.pubsub.port }
+            } catch {
+                Write-Host "[WARN] Failed to parse firebase.json for ports, using defaults" -ForegroundColor Yellow
+            }
+        } else {
+             Write-Host "[WARN] Config file not found at $resolvedConfigPath, using default ports" -ForegroundColor Yellow
+        }
+        
+        # Add emulator hosts
+        $envVars += "FIRESTORE_EMULATOR_HOST=127.0.0.1:$firestorePort"
+        $envVars += "FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:$authPort"
+        $envVars += "FIREBASE_STORAGE_EMULATOR_HOST=127.0.0.1:$storagePort"
+        $envVars += "FIREBASE_DATABASE_EMULATOR_HOST=127.0.0.1:$databasePort"
+        $envVars += "PUBSUB_EMULATOR_HOST=127.0.0.1:$pubsubPort"
+        
+        $envString = $envVars -join " "
+        Write-Host "Setting AppEnvironmentExtra: $envString" -ForegroundColor Gray
+        nssm set FirebaseEmulator AppEnvironmentExtra $envString
+
         # Start the service
         Write-Host "Starting service..." -ForegroundColor Yellow
         $serviceStartTime = Get-Date
