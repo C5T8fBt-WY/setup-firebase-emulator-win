@@ -641,6 +641,7 @@ runs:
         Write-Host "[TIMING] Health Check Duration: $($elapsed.ToString('F3'))s" -ForegroundColor Magenta
 
     - name: Analyze Emulator Logs for Timing
+      if: always()
       shell: pwsh
       run: |
         $stepStart = Get-Date
@@ -656,6 +657,7 @@ runs:
         }
 
         $stdoutLog = Join-Path $workingDir "emulator-stdout.log"
+        $stderrLog = Join-Path $workingDir "emulator-stderr.log"
 
         if (Test-Path $stdoutLog) {
           Write-Host "Analyzing emulator-stdout.log for component downloads..." -ForegroundColor Cyan
@@ -713,12 +715,22 @@ runs:
           Write-Host "[WARN] emulator-stdout.log not found at $stdoutLog" -ForegroundColor Yellow
         }
 
+        if (Test-Path $stderrLog) {
+          Write-Host ""
+          Write-Host "Emulator Stderr Log (first 100 lines):" -ForegroundColor Red
+          Write-Host "-------------------------------------" -ForegroundColor Gray
+          Get-Content $stderrLog | Select-Object -First 100 | ForEach-Object {
+            Write-Host $_ -ForegroundColor Red
+          }
+        }
+
         $stepEnd = Get-Date
         $elapsed = ($stepEnd - $stepStart).TotalSeconds
         Write-Host ""
         Write-Host "[TIMING] Log Analysis Duration: $($elapsed.ToString('F3'))s" -ForegroundColor Magenta
 
     - name: Performance Summary
+      if: always()
       shell: pwsh
       run: |
         $endTime = Get-Date
