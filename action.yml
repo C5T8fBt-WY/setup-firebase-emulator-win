@@ -711,6 +711,12 @@ runs:
           Get-Content $stdoutLog | Select-Object -First 100 | ForEach-Object {
             Write-Host $_ -ForegroundColor DarkGray
           }
+          Write-Host ""
+          Write-Host "Full emulator log (last 100 lines):" -ForegroundColor Cyan
+          Write-Host "-------------------------------------" -ForegroundColor Gray
+          Get-Content $stdoutLog | Select-Object -Last 100 | ForEach-Object {
+            Write-Host $_ -ForegroundColor DarkGray
+          }
         } else {
           Write-Host "[WARN] emulator-stdout.log not found at $stdoutLog" -ForegroundColor Yellow
         }
@@ -720,6 +726,12 @@ runs:
           Write-Host "Emulator Stderr Log (first 100 lines):" -ForegroundColor Red
           Write-Host "-------------------------------------" -ForegroundColor Gray
           Get-Content $stderrLog | Select-Object -First 100 | ForEach-Object {
+            Write-Host $_ -ForegroundColor Red
+          }
+          Write-Host ""
+          Write-Host "Emulator Stderr Log (last 100 lines):" -ForegroundColor Red
+          Write-Host "-------------------------------------" -ForegroundColor Gray
+          Get-Content $stderrLog | Select-Object -Last 100 | ForEach-Object {
             Write-Host $_ -ForegroundColor Red
           }
         }
