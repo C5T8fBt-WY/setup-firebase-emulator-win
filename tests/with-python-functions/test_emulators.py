@@ -79,34 +79,54 @@ def test_auth_and_firestore_integration():
     os.environ['FIREBASE_USE_EMULATOR'] = 'true'
     os.environ['GCLOUD_PROJECT'] = 'demo-python-functions'
     
-    # Create mock service account credentials file
-    mock_credentials = {
-        "type": "service_account",
-        "project_id": "demo-python-functions",
-        "private_key_id": "fake-key",
-        "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC0GUvJzOoJqaLI\nNSG8zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\nzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\nzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\nzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\nAgMBAAECggEAH/jQhgfkR8nQOhF3t7asdXcU1QhVRlkqLaF2jczzzzzzzzzzzzzz\nzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\nzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\nzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\nzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\n-----END PRIVATE KEY-----\n",
-        "client_email": "test@demo-python-functions.iam.gserviceaccount.com",
-        "client_id": "123456789",
-        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-        "token_uri": "https://oauth2.googleapis.com/token"
-    }
-    
-    # Write to temp file
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-        json.dump(mock_credentials, f)
-        temp_cred_path = f.name
-    
-    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = temp_cred_path
-    
-    # NOW import firebase_admin (after env vars are set)
+    # Import firebase_admin after env vars are set
     import firebase_admin
-    from firebase_admin import auth, firestore
+    from firebase_admin import credentials, auth, firestore
+    from google.auth import credentials as google_credentials
     
-    # Initialize Firebase Admin
+    # Use mock credentials approach from StA2BLE-Cloud integration tests
+    # This is the recommended way to test with Firebase emulators
+    class MockGoogleCredential(google_credentials.Credentials):
+        """Mock Google authentication credential for emulator testing."""
+        
+        def __init__(self):
+            super().__init__()
+            self._token = 'mock-token'
+            self.expiry = None
+        
+        @property
+        def valid(self):
+            return True
+        
+        @property
+        def token(self):
+            return self._token
+        
+        @token.setter
+        def token(self, value):
+            self._token = value
+        
+        def refresh(self, request):
+            import time
+            self.token = f'mock-token-{int(time.time())}'
+        
+        @property
+        def service_account_email(self):
+            return 'mock-email@demo-python-functions.iam.gserviceaccount.com'
+    
+    class MockFirebaseCredential(credentials.Base):
+        """Mock Firebase credential for emulator testing."""
+        
+        def __init__(self):
+            self._g_credential = MockGoogleCredential()
+        
+        def get_credential(self):
+            return self._g_credential
+    
+    # Initialize Firebase Admin with mock credentials (emulator doesn't validate them)
     if not firebase_admin._apps:
-        firebase_admin.initialize_app(options={
-            'projectId': 'demo-python-functions',
-        })
+        firebase_admin.initialize_app(MockFirebaseCredential(),
+                                     options={'projectId': 'demo-python-functions'})
     
     try:
         # Step 1: Create test user in Auth emulator
