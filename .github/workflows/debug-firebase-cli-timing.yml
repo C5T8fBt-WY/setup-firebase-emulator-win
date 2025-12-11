@@ -164,14 +164,12 @@ jobs:
           Write-Host "3. ~/AppData/Local/firebase/emulators (Emulator JARs)"
           Write-Host ""
           Write-Host "Suggested cache step:"
-          Write-Host @"
-- name: Cache Firebase CLI and Runtime
-  uses: actions/cache@v4
-  with:
-    path: |
-      ~/.firebase-binary
-      ~/.firebase
-      ~/.config/firebase
-      ~/AppData/Local/firebase
-    key: `${{ runner.os }}-firebase-cli-runtime-`${{ inputs.firebase-tools-version }}
-"@
+          Write-Host "- name: Cache Firebase CLI and Runtime"
+          Write-Host "  uses: actions/cache@v4"
+          Write-Host "  with:"
+          Write-Host "    path: |"
+          Write-Host "      ~/.firebase-binary"
+          Write-Host "      ~/.firebase"
+          Write-Host "      ~/.config/firebase"
+          Write-Host "      ~/AppData/Local/firebase"
+          Write-Host "    key: \`${{ runner.os }}-firebase-cli-runtime-\`${{ inputs.firebase-tools-version }}"
