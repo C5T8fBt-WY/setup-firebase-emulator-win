@@ -131,7 +131,7 @@ runs:
         # Download Firebase CLI standalone binary
         # Official CDN: https://firebase.tools/bin/{platform}/latest
         $downloadUrl = "https://firebase.tools/bin/win/latest"
-        
+
         if ($version -ne "latest" -and $version -ne "") {
           Write-Host "[INFO] Specific version $version requested, but using latest for reliability" -ForegroundColor Cyan
         }
@@ -356,9 +356,9 @@ runs:
         # Calculate and set environment variables for Python functions
         # This fixes the issue where Python functions cannot connect to emulators on Windows
         Write-Host "Configuring environment variables for Python functions..." -ForegroundColor Cyan
-        
+
         $envVars = @()
-        
+
         # Pass JAVA_HOME to the service so emulators use correct Java version
         # Check environment variable first, then fall back to JAVA_HOME from runner
         $javaHome = $env:JAVA_HOME
@@ -372,7 +372,7 @@ runs:
             Write-Host "Detected Java at: $javaHome" -ForegroundColor Gray
           }
         }
-        
+
         if ($javaHome) {
           Write-Host "Adding JAVA_HOME to service environment: $javaHome" -ForegroundColor Gray
           $envVars += "JAVA_HOME=$javaHome"
@@ -384,23 +384,23 @@ runs:
         } else {
           Write-Host "[WARNING] Could not determine JAVA_HOME. Emulators may fail if Java <21 is in PATH." -ForegroundColor Yellow
         }
-        
+
         $envVars += "FIREBASE_PROJECT_ID=$projectId"
         $envVars += "GOOGLE_CLOUD_PROJECT=$projectId"
-        
+
         # Parse firebase.json for ports
         $firestorePort = 8080
         $authPort = 9099
         $storagePort = 9199
         $databasePort = 9000
         $pubsubPort = 8085
-        
+
         # Resolve config path for reading
         $resolvedConfigPath = $configPath
         if (-not [System.IO.Path]::IsPathRooted($resolvedConfigPath)) {
             $resolvedConfigPath = Join-Path $workingDir $resolvedConfigPath
         }
-        
+
         if (Test-Path $resolvedConfigPath) {
             try {
                 Write-Host "Reading ports from $resolvedConfigPath" -ForegroundColor Gray
@@ -416,7 +416,7 @@ runs:
         } else {
              Write-Host "[WARN] Config file not found at $resolvedConfigPath, using default ports" -ForegroundColor Yellow
         }
-        
+
         # Add emulator hosts
         $envVars += "FIRESTORE_EMULATOR_HOST=localhost:$firestorePort"
         $envVars += "FIREBASE_FIRESTORE_EMULATOR_ADDRESS=localhost:$firestorePort"
@@ -424,7 +424,7 @@ runs:
         $envVars += "FIREBASE_STORAGE_EMULATOR_HOST=localhost:$storagePort"
         $envVars += "FIREBASE_DATABASE_EMULATOR_HOST=localhost:$databasePort"
         $envVars += "PUBSUB_EMULATOR_HOST=localhost:$pubsubPort"
-        
+
         # Create dummy credentials to satisfy Google Cloud SDKs that require them even when using emulators
         # Added token_uri to satisfy google-auth library requirements
         $dummyCredsPath = Join-Path $workingDir "dummy-credentials.json"
@@ -441,7 +441,7 @@ runs:
         } | ConvertTo-Json
         $dummyCredsContent | Out-File -FilePath $dummyCredsPath -Encoding ascii
         $envVars += "GOOGLE_APPLICATION_CREDENTIALS=$dummyCredsPath"
-        
+
         Write-Host "Setting AppEnvironmentExtra with $($envVars.Count) variables" -ForegroundColor Gray
         nssm set FirebaseEmulator AppEnvironmentExtra $envVars
 
@@ -602,7 +602,7 @@ runs:
 
         Write-Host "Checking Emulator Hub at port $hubPort..." -ForegroundColor Cyan
         Write-Host ""
-        
+
         # Add debug - test port connectivity before HTTP request
         Write-Host "[DEBUG] Testing Hub port connectivity..." -ForegroundColor Yellow
         $hubPortOpen = Test-NetConnection -ComputerName 127.0.0.1 -Port $hubPort -InformationLevel Quiet -WarningAction SilentlyContinue

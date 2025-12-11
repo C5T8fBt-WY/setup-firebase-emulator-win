@@ -28,7 +28,8 @@ def test_python_functions_emulator():
 
             # Test Firestore access from function
             response = requests.get(
-                "http://127.0.0.1:5001/demo-python-functions/us-central1/check_firestore", timeout=5)
+                "http://127.0.0.1:5001/demo-python-functions/us-central1/check_firestore",
+                timeout=5)
             if response.status_code != 200:
                 print(f"\n[ERROR] check_firestore failed with {response.status_code}")
                 print(f"Response body: {response.text}")
@@ -72,68 +73,68 @@ def test_auth_and_firestore_integration():
     import os
     import tempfile
     import json
-    
+
     # Set emulator environment variables FIRST, before importing firebase modules
     os.environ['FIRESTORE_EMULATOR_HOST'] = '127.0.0.1:8080'
     os.environ['FIREBASE_AUTH_EMULATOR_HOST'] = '127.0.0.1:9099'
     os.environ['FIREBASE_USE_EMULATOR'] = 'true'
     os.environ['GCLOUD_PROJECT'] = 'demo-python-functions'
-    
+
     # Import firebase_admin after env vars are set
     import firebase_admin
     from firebase_admin import credentials, auth, firestore
     from google.auth import credentials as google_credentials
-    
+
     # Use mock credentials approach from StA2BLE-Cloud integration tests
     # This is the recommended way to test with Firebase emulators
     class MockGoogleCredential(google_credentials.Credentials):
         """Mock Google authentication credential for emulator testing."""
-        
+
         def __init__(self):
             super().__init__()
             self._token = 'mock-token'
             self.expiry = None
-        
+
         @property
         def valid(self):
             return True
-        
+
         @property
         def token(self):
             return self._token
-        
+
         @token.setter
         def token(self, value):
             self._token = value
-        
+
         def refresh(self, request):
             import time
             self.token = f'mock-token-{int(time.time())}'
-        
+
         @property
         def service_account_email(self):
             return 'mock-email@demo-python-functions.iam.gserviceaccount.com'
-    
+
     class MockFirebaseCredential(credentials.Base):
         """Mock Firebase credential for emulator testing."""
-        
+
         def __init__(self):
             self._g_credential = MockGoogleCredential()
-        
+
         def get_credential(self):
             return self._g_credential
-    
+
     # Initialize Firebase Admin with mock credentials (emulator doesn't validate them)
     if not firebase_admin._apps:
         firebase_admin.initialize_app(MockFirebaseCredential(),
-                                     options={'projectId': 'demo-python-functions'})
-    
+                                      options={'projectId': 'demo-python-functions'})
+
     try:
         # Step 1: Create test user in Auth emulator
         print("\n[TEST] Creating test user in Auth emulator...")
         test_email = "test@example.com"
         test_password = "testpassword123"
-        
+
         try:
             # Try to delete if exists
             user = auth.get_user_by_email(test_email)
@@ -141,15 +142,11 @@ def test_auth_and_firestore_integration():
             print(f"  Deleted existing user: {user.uid}")
         except:
             pass
-        
+
         # Create new user
-        user = auth.create_user(
-            email=test_email,
-            password=test_password,
-            email_verified=True
-        )
+        user = auth.create_user(email=test_email, password=test_password, email_verified=True)
         print(f"  Created user: {user.uid}")
-        
+
         # Step 2: Create account document in Firestore
         print("\n[TEST] Creating account document in Firestore...")
         db = firestore.client()
@@ -163,65 +160,66 @@ def test_auth_and_firestore_integration():
             'created_at': firestore.SERVER_TIMESTAMP
         })
         print(f"  Created account: {account_id}")
-        
+
         # Step 3: Get custom token for authentication
         print("\n[TEST] Getting custom token...")
         custom_token = auth.create_custom_token(user.uid)
         print(f"  Got custom token (length: {len(custom_token)})")
-        
+
         # Step 4: Exchange custom token for ID token
         print("\n[TEST] Exchanging custom token for ID token...")
         api_key = "fake-api-key"  # Emulator doesn't validate this
         token_exchange_url = f"http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key={api_key}"
-        
+
         token_response = requests.post(
-            token_exchange_url,
-            json={"token": custom_token.decode('utf-8'), "returnSecureToken": True},
-            timeout=5
-        )
-        
+            token_exchange_url, json={
+                "token": custom_token.decode('utf-8'),
+                "returnSecureToken": True
+            }, timeout=5)
+
         if token_response.status_code != 200:
             print(f"  Token exchange failed: {token_response.status_code}")
             print(f"  Response: {token_response.text}")
             pytest.fail(f"Failed to exchange custom token: {token_response.text}")
-        
+
         id_token = token_response.json()['idToken']
         print(f"  Got ID token (length: {len(id_token)})")
-        
+
         # Step 5: Call get_account_info function with auth token
         print("\n[TEST] Calling get_account_info function with auth...")
         function_url = "http://127.0.0.1:5001/demo-python-functions/us-central1/get_account_info"
-        
-        function_response = requests.post(
-            function_url,
-            json={"data": {"accountId": account_id}},
-            headers={"Authorization": f"Bearer {id_token}"},
-            timeout=10
-        )
-        
+
+        function_response = requests.post(function_url, json={"data": {
+            "accountId": account_id
+        }}, headers={"Authorization": f"Bearer {id_token}"}, timeout=10)
+
         if function_response.status_code != 200:
             print(f"  Function call failed: {function_response.status_code}")
             print(f"  Response: {function_response.text}")
             pytest.fail(f"Function call failed: {function_response.text}")
-        
+
         result = function_response.json()
         print(f"  Function response: {result}")
-        
+
         # Verify the response
         assert 'result' in result, "Response should contain 'result'"
         result_data = result['result']
-        
-        assert result_data['accountId'] == account_id, f"Expected accountId={account_id}, got {result_data.get('accountId')}"
-        assert result_data['tickets'] == 100, f"Expected tickets=100, got {result_data.get('tickets')}"
-        assert result_data['offlineQuota'] == 50, f"Expected offlineQuota=50, got {result_data.get('offlineQuota')}"
-        assert result_data['authUid'] == user.uid, f"Expected authUid={user.uid}, got {result_data.get('authUid')}"
-        
+
+        assert result_data[
+            'accountId'] == account_id, f"Expected accountId={account_id}, got {result_data.get('accountId')}"
+        assert result_data[
+            'tickets'] == 100, f"Expected tickets=100, got {result_data.get('tickets')}"
+        assert result_data[
+            'offlineQuota'] == 50, f"Expected offlineQuota=50, got {result_data.get('offlineQuota')}"
+        assert result_data[
+            'authUid'] == user.uid, f"Expected authUid={user.uid}, got {result_data.get('authUid')}"
+
         print("[OK] Auth + Firestore integration test passed!")
         print(f"  ✓ User authentication works")
         print(f"  ✓ Python function receives auth context")
         print(f"  ✓ Function can read from Firestore")
         print(f"  ✓ Data matches expected values")
-        
+
     except Exception as e:
         import traceback
         print(f"\n[ERROR] Test failed: {str(e)}")
