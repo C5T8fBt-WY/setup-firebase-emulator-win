@@ -223,7 +223,15 @@ runs:
         New-Item -ItemType Directory -Force -Path $binaryPath | Out-Null
         Write-Host "Binary path set to: $binaryPath" -ForegroundColor Cyan
 
+    - name: Cache Firebase CLI Binary
+      id: cache-firebase-cli
+      uses: actions/cache@v4
+      with:
+        path: ~/.firebase-binary
+        key: ${{ runner.os }}-firebase-cli-${{ inputs.firebase-tools-version }}
+
     - name: Download Firebase CLI Standalone Binary
+      if: steps.cache-firebase-cli.outputs.cache-hit != 'true'
       shell: pwsh
       run: |
         $stepStart = Get-Date
