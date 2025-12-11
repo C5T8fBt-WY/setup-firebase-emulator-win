@@ -360,9 +360,24 @@ runs:
         $envVars = @()
         
         # Pass JAVA_HOME to the service so emulators use correct Java version
-        if ($env:JAVA_HOME) {
-          Write-Host "Adding JAVA_HOME to service environment: $env:JAVA_HOME" -ForegroundColor Gray
-          $envVars += "JAVA_HOME=$env:JAVA_HOME"
+        # Check environment variable first, then fall back to JAVA_HOME from runner
+        $javaHome = $env:JAVA_HOME
+        if (-not $javaHome) {
+          # Try getting from GITHUB_ENV or system PATH
+          Write-Host "JAVA_HOME not in environment, checking for Java 21..." -ForegroundColor Yellow
+          $javaExe = Get-Command java -ErrorAction SilentlyContinue
+          if ($javaExe) {
+            $javaPath = $javaExe.Source
+            $javaHome = (Get-Item $javaPath).Directory.Parent.FullName
+            Write-Host "Detected Java at: $javaHome" -ForegroundColor Gray
+          }
+        }
+        
+        if ($javaHome) {
+          Write-Host "Adding JAVA_HOME to service environment: $javaHome" -ForegroundColor Gray
+          $envVars += "JAVA_HOME=$javaHome"
+        } else {
+          Write-Host "[WARNING] Could not determine JAVA_HOME. Emulators may fail if Java <21 is in PATH." -ForegroundColor Yellow
         }
         
         $envVars += "FIREBASE_PROJECT_ID=$projectId"
