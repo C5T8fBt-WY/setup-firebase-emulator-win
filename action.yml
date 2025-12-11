@@ -8,14 +8,14 @@ branding:
 
 inputs:
   firebase-tools-version:
-    description: "Firebase Tools version to install"
+    description: "Firebase Tools version (note: action always uses latest from firebase.tools/bin/win/instant/latest for reliability)"
     required: false
-    default: "13.24.1"
+    default: "latest"
 
   java-version:
     description: "Java version to setup (Temurin). Set to 'none' to use existing environment."
     required: false
-    default: "17"
+    default: "21"
 
   project-id:
     description: "Firebase project ID for emulator"
@@ -25,7 +25,7 @@ inputs:
   firebase-config-path:
     description: "Path to firebase.json (absolute, workspace-relative with ./ prefix, or working-directory-relative)"
     required: false
-    default: "./firebase.json"
+    default: "firebase.json"
 
   working-directory:
     description: "Working directory containing firebase.json and related files (firestore.rules, storage.rules, functions/, etc.)"
@@ -40,7 +40,7 @@ inputs:
   wait-time:
     description: "Seconds to wait after starting service before health checks"
     required: false
-    default: "60"
+    default: "120"
 
   skip-health-check:
     description: "Skip health check verification (not recommended)"
@@ -59,14 +59,34 @@ outputs:
 runs:
   using: "composite"
   steps:
+    - name: Initialize Performance Tracking
+      shell: pwsh
+      run: |
+        $script:startTime = Get-Date
+        Write-Host "======================================" -ForegroundColor Magenta
+        Write-Host "Performance Tracking Enabled" -ForegroundColor Magenta
+        Write-Host "======================================" -ForegroundColor Magenta
+        Write-Host "Start Time: $($script:startTime.ToString('HH:mm:ss.fff'))" -ForegroundColor Cyan
+        Write-Host ""
+
+        # Store start time in env
+        echo "ACTION_START_TIME=$($script:startTime.Ticks)" >> $env:GITHUB_ENV
+
     - name: Validate Windows Runner
       shell: pwsh
       run: |
+        $stepStart = Get-Date
+        Write-Host "[TIMING] Step Start: $($stepStart.ToString('HH:mm:ss.fff'))" -ForegroundColor Magenta
+
         if ($env:RUNNER_OS -ne 'Windows') {
           Write-Error "This action only supports Windows runners"
           exit 1
         }
         Write-Host "[OK] Running on Windows: $env:RUNNER_OS" -ForegroundColor Green
+
+        $stepEnd = Get-Date
+        $elapsed = ($stepEnd - $stepStart).TotalSeconds
+        Write-Host "[TIMING] Step Duration: $($elapsed.ToString('F3'))s" -ForegroundColor Magenta
 
     - name: Setup Java
       if: inputs.java-version != 'none'
@@ -79,8 +99,15 @@ runs:
       if: inputs.java-version != 'none'
       shell: pwsh
       run: |
+        $stepStart = Get-Date
+        Write-Host "[TIMING] Step Start: $($stepStart.ToString('HH:mm:ss.fff'))" -ForegroundColor Magenta
+
         $javaVersion = java -version 2>&1 | Select-Object -First 1
         Write-Host "[OK] Java installed: $javaVersion" -ForegroundColor Green
+
+        $stepEnd = Get-Date
+        $elapsed = ($stepEnd - $stepStart).TotalSeconds
+        Write-Host "[TIMING] Step Duration: $($elapsed.ToString('F3'))s" -ForegroundColor Magenta
 
     - name: Setup Firebase Binary Directory
       shell: pwsh
@@ -93,29 +120,35 @@ runs:
     - name: Download Firebase CLI Standalone Binary
       shell: pwsh
       run: |
+        $stepStart = Get-Date
+        Write-Host "[TIMING] Step Start: $($stepStart.ToString('HH:mm:ss.fff'))" -ForegroundColor Magenta
         Write-Host "Downloading Firebase CLI standalone binary v${{ inputs.firebase-tools-version }}..." -ForegroundColor Cyan
 
         $version = "${{ inputs.firebase-tools-version }}"
         $binaryPath = "${{ env.FIREBASE_BINARY_PATH }}"
         $exePath = Join-Path $binaryPath "firebase.exe"
 
-        # Download from GitHub releases (specific version or latest)
-        if ($version -eq "latest" -or $version -eq "") {
-          $downloadUrl = "https://firebase.tools/bin/win/latest"
-        } else {
-          $downloadUrl = "https://github.com/firebase/firebase-tools/releases/download/v$version/firebase-tools-win.exe"
+        # Download Firebase CLI standalone binary
+        # Official CDN: https://firebase.tools/bin/{platform}/latest
+        $downloadUrl = "https://firebase.tools/bin/win/latest"
+        
+        if ($version -ne "latest" -and $version -ne "") {
+          Write-Host "[INFO] Specific version $version requested, but using latest for reliability" -ForegroundColor Cyan
         }
 
         Write-Host "Downloading from: $downloadUrl" -ForegroundColor Gray
 
-        try {
-          Invoke-WebRequest -Uri $downloadUrl -OutFile $exePath -UseBasicParsing
-          Write-Host "[OK] Binary downloaded successfully" -ForegroundColor Green
-        } catch {
-          Write-Host "[WARN] Failed to download specific version, falling back to latest" -ForegroundColor Yellow
-          $downloadUrl = "https://firebase.tools/bin/win/latest"
-          Invoke-WebRequest -Uri $downloadUrl -OutFile $exePath -UseBasicParsing
-        }
+        $downloadStart = Get-Date
+        Invoke-WebRequest -Uri $downloadUrl -OutFile $exePath -UseBasicParsing
+        $downloadEnd = Get-Date
+        $downloadTime = ($downloadEnd - $downloadStart).TotalSeconds
+        $fileSize = (Get-Item $exePath).Length / 1MB
+        Write-Host "[OK] Binary downloaded successfully" -ForegroundColor Green
+        Write-Host "[TIMING] Download Time: $($downloadTime.ToString('F3'))s ($($fileSize.ToString('F2')) MB)" -ForegroundColor Magenta
+
+        $stepEnd = Get-Date
+        $elapsed = ($stepEnd - $stepStart).TotalSeconds
+        Write-Host "[TIMING] Total Step Duration: $($elapsed.ToString('F3'))s" -ForegroundColor Magenta
 
     - name: Add Firebase Binary to PATH
       shell: pwsh
@@ -139,32 +172,122 @@ runs:
     - name: Install Firebase Functions dependencies
       shell: pwsh
       run: |
-        $workDir = "${{ inputs.working-directory }}"
-        $functionsPath = Join-Path $workDir "functions\package.json"
+        $stepStart = Get-Date
+        Write-Host "[TIMING] Step Start: $($stepStart.ToString('HH:mm:ss.fff'))" -ForegroundColor Magenta
 
-        if (Test-Path $functionsPath) {
-          Write-Host "Installing Firebase Functions dependencies..." -ForegroundColor Cyan
-          cd (Join-Path $workDir "functions")
+        $workDir = "${{ inputs.working-directory }}"
+        $functionsDir = Join-Path $workDir "functions"
+        $packageJsonPath = Join-Path $functionsDir "package.json"
+        $requirementsPath = Join-Path $functionsDir "requirements.txt"
+
+        if (Test-Path $packageJsonPath) {
+          Write-Host "Installing Node.js Firebase Functions dependencies..." -ForegroundColor Cyan
+          $npmStart = Get-Date
+          cd $functionsDir
           npm install
-          Write-Host "[OK] Functions dependencies installed" -ForegroundColor Green
+          $npmEnd = Get-Date
+          $npmTime = ($npmEnd - $npmStart).TotalSeconds
+          Write-Host "[OK] Node.js functions dependencies installed" -ForegroundColor Green
+          Write-Host "[TIMING] npm install Duration: $($npmTime.ToString('F3'))s" -ForegroundColor Magenta
+        } elseif (Test-Path $requirementsPath) {
+          Write-Host "Installing Python Firebase Functions dependencies..." -ForegroundColor Cyan
+          
+          # Check Python version - firebase-functions requires Python 3.10+
+          $pythonVersion = python --version 2>&1
+          if ($pythonVersion -match "Python (\d+)\.(\d+)") {
+            $major = [int]$matches[1]
+            $minor = [int]$matches[2]
+            
+            if ($major -lt 3 -or ($major -eq 3 -and $minor -lt 10)) {
+              Write-Host "[WARN] Current Python version ($pythonVersion) is too old for firebase-functions (requires 3.10+)" -ForegroundColor Yellow
+              Write-Host "[INFO] Attempting to use 'uv' to install a compatible Python version..." -ForegroundColor Cyan
+            }
+          }
+          
+          # Check if uv is available (faster alternative to pip)
+          $uvAvailable = Get-Command uv -ErrorAction SilentlyContinue
+          if ($uvAvailable) {
+            Write-Host "[INFO] Using uv for dependency installation" -ForegroundColor Cyan
+            
+            $pipStart = Get-Date
+            cd $functionsDir
+            
+            # Create venv (Firebase expects 'venv' directory name on Windows)
+            if (-not (Test-Path "venv")) {
+              # Explicitly request Python 3.12 if creating a new venv
+              # This handles the case where system python is too old
+              uv venv venv --python 3.12
+            }
+            
+            # Install dependencies into venv
+            uv pip install --python venv -r requirements.txt
+            
+            $pipEnd = Get-Date
+            $pipTime = ($pipEnd - $pipStart).TotalSeconds
+            Write-Host "[OK] Python functions dependencies installed" -ForegroundColor Green
+            Write-Host "[TIMING] uv install Duration: $($pipTime.ToString('F3'))s" -ForegroundColor Magenta
+          } else {
+            # Fallback to pip - now we must enforce the version check strictly
+            if ($major -lt 3 -or ($major -eq 3 -and $minor -lt 10)) {
+               Write-Host "[ERROR] Python $pythonVersion is too old and 'uv' is not available." -ForegroundColor Red
+               Write-Host "[ERROR] Please use one of these actions in your workflow before this action:" -ForegroundColor Red
+               Write-Host "  - astral-sh/setup-uv@v7 with python-version: '3.12' (recommended, faster)" -ForegroundColor Yellow
+               Write-Host "  - actions/setup-python@v5 with python-version: '3.12'" -ForegroundColor Yellow
+               exit 1
+            }
+
+            Write-Host "[INFO] Using pip for installation (consider using astral-sh/setup-uv action for faster builds)" -ForegroundColor Cyan
+            
+            $pipStart = Get-Date
+            cd $functionsDir
+            pip install -r requirements.txt
+            
+            $pipEnd = Get-Date
+            $pipTime = ($pipEnd - $pipStart).TotalSeconds
+            Write-Host "[OK] Python functions dependencies installed" -ForegroundColor Green
+            Write-Host "[TIMING] pip install Duration: $($pipTime.ToString('F3'))s" -ForegroundColor Magenta
+          }
         } else {
-          Write-Host "[INFO] No functions/package.json found in working directory, skipping..." -ForegroundColor Yellow
+          Write-Host "[INFO] No functions/package.json or functions/requirements.txt found, skipping..." -ForegroundColor Yellow
         }
+
+        $stepEnd = Get-Date
+        $elapsed = ($stepEnd - $stepStart).TotalSeconds
+        Write-Host "[TIMING] Step Duration: $($elapsed.ToString('F3'))s" -ForegroundColor Magenta
 
     - name: Install NSSM
       shell: pwsh
       run: |
-        Write-Host "Installing NSSM (Non-Sucking Service Manager)..." -ForegroundColor Cyan
-        choco install nssm -y
-        Write-Host "[OK] NSSM installed" -ForegroundColor Green
+        $stepStart = Get-Date
+        Write-Host "[TIMING] Step Start: $($stepStart.ToString('HH:mm:ss.fff'))" -ForegroundColor Magenta
+
+        # Check if NSSM is already available
+        $nssmPath = Get-Command nssm -ErrorAction SilentlyContinue
+        if ($nssmPath) {
+          Write-Host "[OK] NSSM already available at: $($nssmPath.Source)" -ForegroundColor Green
+        } else {
+          Write-Host "Installing NSSM (Non-Sucking Service Manager) via Chocolatey..." -ForegroundColor Cyan
+          $chocoStart = Get-Date
+          choco install nssm -y
+          $chocoEnd = Get-Date
+          $chocoTime = ($chocoEnd - $chocoStart).TotalSeconds
+          Write-Host "[OK] NSSM installed" -ForegroundColor Green
+          Write-Host "[TIMING] choco install Duration: $($chocoTime.ToString('F3'))s" -ForegroundColor Magenta
+        }
+
+        $stepEnd = Get-Date
+        $elapsed = ($stepEnd - $stepStart).TotalSeconds
+        Write-Host "[TIMING] Step Duration: $($elapsed.ToString('F3'))s" -ForegroundColor Magenta
 
     - name: Start Firebase Emulators as Windows Service
       id: start-service
       shell: pwsh
       run: |
+        $stepStart = Get-Date
         Write-Host "======================================" -ForegroundColor Cyan
         Write-Host "Starting Firebase Emulator Service" -ForegroundColor Cyan
         Write-Host "======================================" -ForegroundColor Cyan
+        Write-Host "[TIMING] Step Start: $($stepStart.ToString('HH:mm:ss.fff'))" -ForegroundColor Magenta
         Write-Host ""
 
         # Locate Firebase CLI binary
@@ -216,26 +339,212 @@ runs:
 
         # Install and configure Windows service using binary
         Write-Host "Installing service with Firebase binary..." -ForegroundColor Gray
+        $nssmInstallStart = Get-Date
         nssm install FirebaseEmulator $firebaseBin $argList
+        $nssmInstallEnd = Get-Date
+        $nssmInstallTime = ($nssmInstallEnd - $nssmInstallStart).TotalSeconds
+        Write-Host "[TIMING] NSSM Install: $($nssmInstallTime.ToString('F3'))s" -ForegroundColor Magenta
 
+        $nssmConfigStart = Get-Date
         nssm set FirebaseEmulator AppDirectory $workingDir
         nssm set FirebaseEmulator AppStdout "$workingDir\emulator-stdout.log"
         nssm set FirebaseEmulator AppStderr "$workingDir\emulator-stderr.log"
+        $nssmConfigEnd = Get-Date
+        $nssmConfigTime = ($nssmConfigEnd - $nssmConfigStart).TotalSeconds
+        Write-Host "[TIMING] NSSM Configuration: $($nssmConfigTime.ToString('F3'))s" -ForegroundColor Magenta
+
+        # Calculate and set environment variables for Python functions
+        # This fixes the issue where Python functions cannot connect to emulators on Windows
+        Write-Host "Configuring environment variables for Python functions..." -ForegroundColor Cyan
+        
+        $envVars = @()
+        
+        # Pass JAVA_HOME to the service so emulators use correct Java version
+        # Check environment variable first, then fall back to JAVA_HOME from runner
+        $javaHome = $env:JAVA_HOME
+        if (-not $javaHome) {
+          # Try getting from GITHUB_ENV or system PATH
+          Write-Host "JAVA_HOME not in environment, checking for Java 21..." -ForegroundColor Yellow
+          $javaExe = Get-Command java -ErrorAction SilentlyContinue
+          if ($javaExe) {
+            $javaPath = $javaExe.Source
+            $javaHome = (Get-Item $javaPath).Directory.Parent.FullName
+            Write-Host "Detected Java at: $javaHome" -ForegroundColor Gray
+          }
+        }
+        
+        if ($javaHome) {
+          Write-Host "Adding JAVA_HOME to service environment: $javaHome" -ForegroundColor Gray
+          $envVars += "JAVA_HOME=$javaHome"
+          # Also prepend Java bin directory to PATH so firebase uses the correct java executable
+          $javaBin = Join-Path $javaHome "bin"
+          $currentPath = $env:PATH
+          $envVars += "PATH=$javaBin;$currentPath"
+          Write-Host "Prepending to PATH: $javaBin" -ForegroundColor Gray
+        } else {
+          Write-Host "[WARNING] Could not determine JAVA_HOME. Emulators may fail if Java <21 is in PATH." -ForegroundColor Yellow
+        }
+        
+        $envVars += "FIREBASE_PROJECT_ID=$projectId"
+        $envVars += "GOOGLE_CLOUD_PROJECT=$projectId"
+        
+        # Parse firebase.json for ports
+        $firestorePort = 8080
+        $authPort = 9099
+        $storagePort = 9199
+        $databasePort = 9000
+        $pubsubPort = 8085
+        
+        # Resolve config path for reading
+        $resolvedConfigPath = $configPath
+        if (-not [System.IO.Path]::IsPathRooted($resolvedConfigPath)) {
+            $resolvedConfigPath = Join-Path $workingDir $resolvedConfigPath
+        }
+        
+        if (Test-Path $resolvedConfigPath) {
+            try {
+                Write-Host "Reading ports from $resolvedConfigPath" -ForegroundColor Gray
+                $config = Get-Content $resolvedConfigPath | ConvertFrom-Json
+                if ($config.emulators.firestore.port) { $firestorePort = $config.emulators.firestore.port }
+                if ($config.emulators.auth.port) { $authPort = $config.emulators.auth.port }
+                if ($config.emulators.storage.port) { $storagePort = $config.emulators.storage.port }
+                if ($config.emulators.database.port) { $databasePort = $config.emulators.database.port }
+                if ($config.emulators.pubsub.port) { $pubsubPort = $config.emulators.pubsub.port }
+            } catch {
+                Write-Host "[WARN] Failed to parse firebase.json for ports, using defaults" -ForegroundColor Yellow
+            }
+        } else {
+             Write-Host "[WARN] Config file not found at $resolvedConfigPath, using default ports" -ForegroundColor Yellow
+        }
+        
+        # Add emulator hosts
+        $envVars += "FIRESTORE_EMULATOR_HOST=localhost:$firestorePort"
+        $envVars += "FIREBASE_FIRESTORE_EMULATOR_ADDRESS=localhost:$firestorePort"
+        $envVars += "FIREBASE_AUTH_EMULATOR_HOST=localhost:$authPort"
+        $envVars += "FIREBASE_STORAGE_EMULATOR_HOST=localhost:$storagePort"
+        $envVars += "FIREBASE_DATABASE_EMULATOR_HOST=localhost:$databasePort"
+        $envVars += "PUBSUB_EMULATOR_HOST=localhost:$pubsubPort"
+        
+        # Create dummy credentials to satisfy Google Cloud SDKs that require them even when using emulators
+        # Added token_uri to satisfy google-auth library requirements
+        $dummyCredsPath = Join-Path $workingDir "dummy-credentials.json"
+        $dummyCredsContent = @{
+            type = "service_account"
+            project_id = $projectId
+            private_key = "-----BEGIN PRIVATE KEY-----`nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCUCDiGgcL1LUAM`nCUEuEwXYC+C1YlUsrcGFEzV5Rj9k7GOzp7BJo004/eO+N3731P8PU7PlKTUYSW+2`nbjmM53QGg6WSpl2NyHwFSxa3aPZw5IyM4mxdWfzGpoPUoCTxbEphTxlhN06LWWiK`nNM7yjm1Pk/GBBSvV4JdkmO9w7TnJVpfqF84ApSoyGarB8wfA0C6nVkJ7J0ey0RKG`nBq90KqWIs0VQO026AEHpLtKgM1hRjZfD5hDTYXssG0e64bFr8FE6wm26dzoYFrAG`nGxawqUvGDpC+hyc0FI4EMHr1DLF4w8ss+wXe1wmxZIcoGPiRCibvJWNaBemP08WA`noT7WdAwVAgMBAAECggEAHcKfVo9M2gycVS8hHvmtEZelt+GKfR57itznQbfZM9mA`nW9RpEQzXEA+e0xWGHZ4BHxw1TOthZL4SyurTABxiC5M43Mg8g64cHNZRPVNJRD32`ncbZtkcDvHCLK2xrNAopCU9jaodxEGqjBZxOhzUrL+BUmlskq3Gc4GH3UmW/fz7We`nBZPkOCgyYcXTRMscSSqwXc7c2ZAQ4z0tl+OB5Q9aS3XrE6nkJZ3x1tdnH2QKsvGA`ntL20EVoLqE/EVSdVVFvH/ez1xe/8VSeAEktCyPfOJoVqwb7l7qtQ3zmB7Sc7CISt`nPx76qmoq1PqC2xTwRW2hw8RccK0uJ6axSU7utw5piwKBgQDQXRuVr9mQ4djRzxcl`nkcVy4wTII3xHtxClxYFuecNY+9tDklqqwdzIJBpikeUBzcb1xzwZKc4uJQ1lk4km`nEKjds4FNMUYjh9MYk0GAxeq52Tn2FA3bXkvrEL7T6VsBu7kBvQXRNKq5NqfF8VGV`nIGRhELRw2xrqTv0fWjgldCN7fwKBgQC14BbLYV7oHMn21Gec5BdXx7bNY0J1MGBl`nMUVX0Rmo2KfPWTEcEQ5HRAVjzyy7ZUbPQQ8umYOo2Mh8gdZ/6xQSUOZgGmgUWwJ3`nsb0IHMPkO+ZKLwW0JMz88LJrZHd687bOJLD7Pc41x5/47/rcgs6Ih8VvQU2Wk9E4`nNJIdjU+SawKBgDIreQzdvqEoADDkkEo3gzdaejhGcxJBffysRbH4F5VBb1Yh0zry`nWtrF9qRtRJrelV1wj4PvkPmDampez9Meh8p6AlQ33Q+JEMcGDeuXvCDrsQ0TXxLG`n7bi323ri4UrVjIJipRfuen0GL/d1V5N0rTbB8vCJkT2Br2jxLDu4byK5AoGAZj9x`nES3QmVV2BZosFfv1U5gnoRgoiJGF393vSgt4DYCf9uYBwfGkwVPwY8hZMZEiWeoN`nivkrF4WoULb9zDRwuEta+LRfxvHTVU9LIoBpcKpsMVB2OGxoAdufsthsg2b4YrQl`n+1kn0PxFZ0IjGk0/p2oNCRsBb6HygVKswohrL7kCgYEAqyqCZYxQ01OxcZ7z/k9M`n/+zpxl/y4B7MXSjrSHYt1g1vaPBtOAt48C6v330H97DFb+F0T7nke25+eaHFEUDD`n5rX1jwLTA1Hit8R039nKBejeOPEKt68M6d/yr+bqo0ty/gNALFcdGw+2QQ3Pvl8M`nK625Mu/8oLCiD6TTVfTCGw8=`n-----END PRIVATE KEY-----`n"
+            client_email = "firebase-adminsdk-dummy@$projectId.iam.gserviceaccount.com"
+            client_id = "1234567890"
+            auth_uri = "https://accounts.google.com/o/oauth2/auth"
+            token_uri = "https://oauth2.googleapis.com/token"
+            auth_provider_x509_cert_url = "https://www.googleapis.com/oauth2/v1/certs"
+            client_x509_cert_url = "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-dummy%40$projectId.iam.gserviceaccount.com"
+        } | ConvertTo-Json
+        $dummyCredsContent | Out-File -FilePath $dummyCredsPath -Encoding ascii
+        $envVars += "GOOGLE_APPLICATION_CREDENTIALS=$dummyCredsPath"
+        
+        Write-Host "Setting AppEnvironmentExtra with $($envVars.Count) variables" -ForegroundColor Gray
+        nssm set FirebaseEmulator AppEnvironmentExtra $envVars
 
         # Start the service
         Write-Host "Starting service..." -ForegroundColor Yellow
+        $serviceStartTime = Get-Date
         nssm start FirebaseEmulator
+        $serviceStartEnd = Get-Date
+        $serviceStartDuration = ($serviceStartEnd - $serviceStartTime).TotalSeconds
+        Write-Host "[TIMING] Service Start Command: $($serviceStartDuration.ToString('F3'))s" -ForegroundColor Magenta
 
         Write-Host "[OK] Service start command issued" -ForegroundColor Green
         Write-Host ""
 
-    - name: Wait for Service Initialization
+        $stepEnd = Get-Date
+        $elapsed = ($stepEnd - $stepStart).TotalSeconds
+        Write-Host "[TIMING] Total Step Duration: $($elapsed.ToString('F3'))s" -ForegroundColor Magenta
+
+    - name: Wait for Emulators to be Ready
       shell: pwsh
       run: |
-        $waitTime = [int]"${{ inputs.wait-time }}"
-        Write-Host "Waiting $waitTime seconds for emulators to initialize..." -ForegroundColor Yellow
-        Start-Sleep -Seconds $waitTime
-        Write-Host "[OK] Wait complete" -ForegroundColor Green
+        $stepStart = Get-Date
+        Write-Host "======================================" -ForegroundColor Cyan
+        Write-Host "Waiting for Emulators to be Ready" -ForegroundColor Cyan
+        Write-Host "======================================" -ForegroundColor Cyan
+        Write-Host "[TIMING] Step Start: $($stepStart.ToString('HH:mm:ss.fff'))" -ForegroundColor Magenta
+        Write-Host ""
+
+        $maxWaitTime = [int]"${{ inputs.wait-time }}"
+        $pollInterval = 3  # Check every 3 seconds
+        $elapsedTime = 0
+
+        # Get Hub port from firebase.json
+        $configPath = "${{ inputs.firebase-config-path }}"
+        if (-not [System.IO.Path]::IsPathRooted($configPath)) {
+          if ($configPath.StartsWith("./") -or $configPath.StartsWith(".\")) {
+            $configPath = Join-Path $PWD.Path $configPath
+          } else {
+            $workDir = "${{ inputs.working-directory }}"
+            if (-not [System.IO.Path]::IsPathRooted($workDir)) {
+              $workDir = Join-Path $PWD.Path $workDir
+            }
+            $configPath = Join-Path $workDir $configPath
+          }
+        }
+
+        $hubPort = 4400
+        if (Test-Path $configPath) {
+          $config = Get-Content $configPath | ConvertFrom-Json
+          if ($config.emulators.hub) {
+            $hubPort = $config.emulators.hub.port
+          }
+        }
+
+        Write-Host "Polling Hub at port $hubPort (max wait: $maxWaitTime seconds)..." -ForegroundColor Cyan
+        Write-Host ""
+
+        $ready = $false
+        while ($elapsedTime -lt $maxWaitTime -and -not $ready) {
+          try {
+            $hubResponse = Invoke-RestMethod -Uri "http://127.0.0.1:$hubPort/emulators" -TimeoutSec 2 -UseBasicParsing -ErrorAction Stop
+            
+            # Check if all emulators are accessible
+            $allReady = $true
+            foreach ($emulator in $hubResponse.PSObject.Properties) {
+              $name = $emulator.Name
+              $info = $emulator.Value
+              $emulatorHost = if ($info.host) { $info.host } else { "127.0.0.1" }
+              $port = $info.port
+              
+              $portOpen = Test-NetConnection -ComputerName $emulatorHost -Port $port -InformationLevel Quiet -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
+              if (-not $portOpen) {
+                $allReady = $false
+                break
+              }
+            }
+            
+            if ($allReady) {
+              $ready = $true
+              $checkTime = Get-Date
+              $actualWaitTime = ($checkTime - $stepStart).TotalSeconds
+              Write-Host "[SUCCESS] All emulators are ready!" -ForegroundColor Green
+              Write-Host "[TIMING] Emulators became ready in $($actualWaitTime.ToString('F3'))s" -ForegroundColor Magenta
+              break
+            }
+          } catch {
+            # Hub not ready yet, continue polling
+          }
+          
+          Write-Host "  Waiting... ($($elapsedTime)s elapsed)" -ForegroundColor Gray
+          Start-Sleep -Seconds $pollInterval
+          $elapsedTime += $pollInterval
+        }
+
+        if (-not $ready) {
+          Write-Host "[WARN] Reached timeout ($maxWaitTime s) before all emulators reported ready" -ForegroundColor Yellow
+          Write-Host "[INFO] This may be normal - proceeding with health check" -ForegroundColor Cyan
+        }
+
+        Write-Host ""
+        $stepEnd = Get-Date
+        $elapsed = ($stepEnd - $stepStart).TotalSeconds
+        Write-Host "[TIMING] Total Step Duration: $($elapsed.ToString('F3'))s" -ForegroundColor Magenta
 
     - name: Check Service Status
       id: check-service
@@ -256,9 +565,11 @@ runs:
       if: inputs.skip-health-check != 'true'
       shell: pwsh
       run: |
+        $stepStart = Get-Date
         Write-Host "======================================" -ForegroundColor Cyan
         Write-Host "Emulator Health Check (via Hub)" -ForegroundColor Cyan
         Write-Host "======================================" -ForegroundColor Cyan
+        Write-Host "[TIMING] Step Start: $($stepStart.ToString('HH:mm:ss.fff'))" -ForegroundColor Magenta
         Write-Host ""
 
         # Get Hub port from firebase.json (default 4400)
@@ -291,9 +602,15 @@ runs:
 
         Write-Host "Checking Emulator Hub at port $hubPort..." -ForegroundColor Cyan
         Write-Host ""
+        
+        # Add debug - test port connectivity before HTTP request
+        Write-Host "[DEBUG] Testing Hub port connectivity..." -ForegroundColor Yellow
+        $hubPortOpen = Test-NetConnection -ComputerName 127.0.0.1 -Port $hubPort -InformationLevel Quiet -WarningAction SilentlyContinue
+        Write-Host "[DEBUG] Port $hubPort is $(if ($hubPortOpen) { 'OPEN' } else { 'CLOSED' })" -ForegroundColor $(if ($hubPortOpen) { 'Green' } else { 'Red' })
 
         # Query Hub endpoint
         try {
+          Write-Host "[DEBUG] Attempting HTTP request to Hub..." -ForegroundColor Yellow
           $hubResponse = Invoke-RestMethod -Uri "http://127.0.0.1:$hubPort/emulators" -TimeoutSec 5 -UseBasicParsing
           Write-Host "[OK] Emulator Hub is responding" -ForegroundColor Green
           Write-Host ""
@@ -350,3 +667,123 @@ runs:
           Write-Host "Check emulator-stdout.log and emulator-stderr.log for details." -ForegroundColor Yellow
           exit 1
         }
+
+        $stepEnd = Get-Date
+        $elapsed = ($stepEnd - $stepStart).TotalSeconds
+        Write-Host ""
+        Write-Host "[TIMING] Health Check Duration: $($elapsed.ToString('F3'))s" -ForegroundColor Magenta
+
+    - name: Analyze Emulator Logs for Timing
+      if: always()
+      shell: pwsh
+      run: |
+        $stepStart = Get-Date
+        Write-Host "======================================" -ForegroundColor Magenta
+        Write-Host "Emulator Component Download Analysis" -ForegroundColor Magenta
+        Write-Host "======================================" -ForegroundColor Magenta
+        Write-Host "[TIMING] Step Start: $($stepStart.ToString('HH:mm:ss.fff'))" -ForegroundColor Magenta
+        Write-Host ""
+
+        $workingDir = "${{ inputs.working-directory }}"
+        if (-not [System.IO.Path]::IsPathRooted($workingDir)) {
+          $workingDir = Join-Path $PWD.Path $workingDir
+        }
+
+        $stdoutLog = Join-Path $workingDir "emulator-stdout.log"
+        $stderrLog = Join-Path $workingDir "emulator-stderr.log"
+
+        if (Test-Path $stdoutLog) {
+          Write-Host "Analyzing emulator-stdout.log for component downloads..." -ForegroundColor Cyan
+          Write-Host ""
+          
+          # Parse log for download events
+          $logContent = Get-Content $stdoutLog -Raw
+          
+          # Look for download patterns
+          $downloadPattern = 'Downloading ([\w-]+).*?to.*?|already exists\.|Download complete'
+          $matches = [regex]::Matches($logContent, $downloadPattern)
+          
+          if ($matches.Count -gt 0) {
+            Write-Host "[INFO] Found emulator component activity:" -ForegroundColor Yellow
+            foreach ($match in $matches | Select-Object -First 20) {
+              Write-Host "  $($match.Value)" -ForegroundColor Gray
+            }
+          } else {
+            Write-Host "[INFO] No explicit download messages found" -ForegroundColor Yellow
+            Write-Host "[INFO] This likely means emulator components were already cached" -ForegroundColor Cyan
+          }
+          
+          Write-Host ""
+          Write-Host "Checking for cache directory..." -ForegroundColor Cyan
+          
+          # Check Firebase cache directory
+          $firebaseCacheDir = Join-Path $env:LOCALAPPDATA "firebase\emulators"
+          if (Test-Path $firebaseCacheDir) {
+            Write-Host "[INFO] Firebase emulator cache exists at:" -ForegroundColor Green
+            Write-Host "  $firebaseCacheDir" -ForegroundColor Gray
+            
+            $cacheFiles = Get-ChildItem -Path $firebaseCacheDir -Recurse -File | 
+              Select-Object Name, @{N='Size(MB)';E={[math]::Round($_.Length/1MB,2)}}, LastWriteTime |
+              Sort-Object 'Size(MB)' -Descending |
+              Select-Object -First 10
+            
+            Write-Host ""
+            Write-Host "Largest cached components:" -ForegroundColor Cyan
+            $cacheFiles | Format-Table -AutoSize
+            
+            $totalCacheSize = (Get-ChildItem -Path $firebaseCacheDir -Recurse -File | 
+              Measure-Object -Property Length -Sum).Sum / 1MB
+            Write-Host "Total cache size: $([math]::Round($totalCacheSize,2)) MB" -ForegroundColor Yellow
+          } else {
+            Write-Host "[INFO] No Firebase emulator cache directory found (first run)" -ForegroundColor Yellow
+          }
+          
+          Write-Host ""
+          Write-Host "Full emulator log (first 100 lines):" -ForegroundColor Cyan
+          Write-Host "-------------------------------------" -ForegroundColor Gray
+          Get-Content $stdoutLog | Select-Object -First 100 | ForEach-Object {
+            Write-Host $_ -ForegroundColor DarkGray
+          }
+        } else {
+          Write-Host "[WARN] emulator-stdout.log not found at $stdoutLog" -ForegroundColor Yellow
+        }
+
+        if (Test-Path $stderrLog) {
+          Write-Host ""
+          Write-Host "Emulator Stderr Log (first 100 lines):" -ForegroundColor Red
+          Write-Host "-------------------------------------" -ForegroundColor Gray
+          Get-Content $stderrLog | Select-Object -First 100 | ForEach-Object {
+            Write-Host $_ -ForegroundColor Red
+          }
+        }
+
+        $stepEnd = Get-Date
+        $elapsed = ($stepEnd - $stepStart).TotalSeconds
+        Write-Host ""
+        Write-Host "[TIMING] Log Analysis Duration: $($elapsed.ToString('F3'))s" -ForegroundColor Magenta
+
+    - name: Performance Summary
+      if: always()
+      shell: pwsh
+      run: |
+        $endTime = Get-Date
+        $startTicks = [long]"${{ env.ACTION_START_TIME }}"
+        $startTime = [datetime]::new($startTicks)
+        $totalElapsed = ($endTime - $startTime).TotalSeconds
+
+        Write-Host ""
+        Write-Host "======================================" -ForegroundColor Magenta
+        Write-Host "PERFORMANCE SUMMARY" -ForegroundColor Magenta
+        Write-Host "======================================" -ForegroundColor Magenta
+        Write-Host "Start Time: $($startTime.ToString('HH:mm:ss.fff'))" -ForegroundColor Cyan
+        Write-Host "End Time:   $($endTime.ToString('HH:mm:ss.fff'))" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "TOTAL ELAPSED TIME: $($totalElapsed.ToString('F3'))s" -ForegroundColor Green
+        Write-Host "======================================" -ForegroundColor Magenta
+        Write-Host ""
+        Write-Host "[INFO] Key observations:" -ForegroundColor Yellow
+        Write-Host "  - Check 'Download Firebase CLI' for binary download time" -ForegroundColor Gray
+        Write-Host "  - Check 'Install NSSM' for chocolatey install time" -ForegroundColor Gray
+        Write-Host "  - Check 'Wait for Service' - this is when emulators download components" -ForegroundColor Gray
+        Write-Host "  - Check emulator logs above for component-level timing details" -ForegroundColor Gray
+        Write-Host ""
