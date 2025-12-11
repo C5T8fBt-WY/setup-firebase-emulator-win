@@ -358,6 +358,13 @@ runs:
         Write-Host "Configuring environment variables for Python functions..." -ForegroundColor Cyan
         
         $envVars = @()
+        
+        # Pass JAVA_HOME to the service so emulators use correct Java version
+        if ($env:JAVA_HOME) {
+          Write-Host "Adding JAVA_HOME to service environment: $env:JAVA_HOME" -ForegroundColor Gray
+          $envVars += "JAVA_HOME=$env:JAVA_HOME"
+        }
+        
         $envVars += "FIREBASE_PROJECT_ID=$projectId"
         $envVars += "GOOGLE_CLOUD_PROJECT=$projectId"
         
