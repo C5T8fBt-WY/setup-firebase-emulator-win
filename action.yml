@@ -376,6 +376,11 @@ runs:
         if ($javaHome) {
           Write-Host "Adding JAVA_HOME to service environment: $javaHome" -ForegroundColor Gray
           $envVars += "JAVA_HOME=$javaHome"
+          # Also prepend Java bin directory to PATH so firebase uses the correct java executable
+          $javaBin = Join-Path $javaHome "bin"
+          $currentPath = $env:PATH
+          $envVars += "PATH=$javaBin;$currentPath"
+          Write-Host "Prepending to PATH: $javaBin" -ForegroundColor Gray
         } else {
           Write-Host "[WARNING] Could not determine JAVA_HOME. Emulators may fail if Java <21 is in PATH." -ForegroundColor Yellow
         }
