@@ -473,18 +473,29 @@ runs:
         }
         Write-Host ""
 
+        # Generate unique service name to avoid conflicts in parallel CI runs
+        $runId = $env:GITHUB_RUN_ID
+        $jobId = $env:GITHUB_JOB
+        if ($runId -and $jobId) {
+          $serviceName = "FirebaseEmulator-$runId-$jobId"
+          Write-Host "[INFO] Using unique service name for parallel CI: $serviceName" -ForegroundColor Cyan
+        } else {
+          $serviceName = "FirebaseEmulator"
+          Write-Host "[INFO] Using default service name: $serviceName" -ForegroundColor Gray
+        }
+
         # Install and configure Windows service using binary
         Write-Host "Installing service with Firebase binary..." -ForegroundColor Gray
         $nssmInstallStart = Get-Date
-        nssm install FirebaseEmulator $firebaseBin $argList
+        nssm install $serviceName $firebaseBin $argList
         $nssmInstallEnd = Get-Date
         $nssmInstallTime = ($nssmInstallEnd - $nssmInstallStart).TotalSeconds
         Write-Host "[TIMING] NSSM Install: $($nssmInstallTime.ToString('F3'))s" -ForegroundColor Magenta
 
         $nssmConfigStart = Get-Date
-        nssm set FirebaseEmulator AppDirectory $workingDir
-        nssm set FirebaseEmulator AppStdout "$workingDir\emulator-stdout.log"
-        nssm set FirebaseEmulator AppStderr "$workingDir\emulator-stderr.log"
+        nssm set $serviceName AppDirectory $workingDir
+        nssm set $serviceName AppStdout "$workingDir\emulator-stdout.log"
+        nssm set $serviceName AppStderr "$workingDir\emulator-stderr.log"
         $nssmConfigEnd = Get-Date
         $nssmConfigTime = ($nssmConfigEnd - $nssmConfigStart).TotalSeconds
         Write-Host "[TIMING] NSSM Configuration: $($nssmConfigTime.ToString('F3'))s" -ForegroundColor Magenta
@@ -579,12 +590,12 @@ runs:
         $envVars += "GOOGLE_APPLICATION_CREDENTIALS=$dummyCredsPath"
 
         Write-Host "Setting AppEnvironmentExtra with $($envVars.Count) variables" -ForegroundColor Gray
-        nssm set FirebaseEmulator AppEnvironmentExtra $envVars
+        nssm set $serviceName AppEnvironmentExtra $envVars
 
         # Start the service
         Write-Host "Starting service..." -ForegroundColor Yellow
         $serviceStartTime = Get-Date
-        nssm start FirebaseEmulator
+        nssm start $serviceName
         $serviceStartEnd = Get-Date
         $serviceStartDuration = ($serviceStartEnd - $serviceStartTime).TotalSeconds
         Write-Host "[TIMING] Service Start Command: $($serviceStartDuration.ToString('F3'))s" -ForegroundColor Magenta
@@ -686,7 +697,16 @@ runs:
       id: check-service
       shell: pwsh
       run: |
-        $service = Get-Service -Name FirebaseEmulator -ErrorAction SilentlyContinue
+        # Reconstruct the service name (same logic as installation step)
+        $runId = $env:GITHUB_RUN_ID
+        $jobId = $env:GITHUB_JOB
+        if ($runId -and $jobId) {
+          $serviceName = "FirebaseEmulator-$runId-$jobId"
+        } else {
+          $serviceName = "FirebaseEmulator"
+        }
+
+        $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
         if ($service) {
           $status = $service.Status
           Write-Host "Service status: $status" -ForegroundColor $(if ($status -eq 'Running') { 'Green' } else { 'Yellow' })
