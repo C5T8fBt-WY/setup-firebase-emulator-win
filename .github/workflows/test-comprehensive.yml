@@ -14,18 +14,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 21
-
-      - name: Set up Python
+      - name: Set up Python (for test script only)
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install Python dependencies
+      - name: Install Python dependencies (for test script)
         run: |
           python -m pip install --upgrade pip
           pip install firebase-admin requests
@@ -88,18 +82,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 21
-
-      - name: Set up Python
+      - name: Set up Python (for test script only)
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install Python dependencies
+      - name: Install Python dependencies (for test script)
         run: |
           python -m pip install --upgrade pip
           pip install firebase-admin requests
@@ -185,18 +173,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 21
-
-      - name: Set up Python
+      - name: Set up Python (for test script only)
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install Python dependencies
+      - name: Install Python dependencies (for test script)
         run: |
           python -m pip install --upgrade pip
           pip install firebase-admin requests
@@ -259,21 +241,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 21
-
-      - name: Set up Python
+      - name: Set up Python (for test script only)
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Setup uv
-        uses: astral-sh/setup-uv@v5
-
-      - name: Install Python dependencies
+      - name: Install Python dependencies (for test script)
         run: |
           python -m pip install --upgrade pip
           pip install firebase-admin requests pytest
@@ -336,18 +309,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 21
-
-      - name: Set up Python
+      - name: Set up Python (for test script only)
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install Python dependencies
+      - name: Install Python dependencies (for test script)
         run: |
           python -m pip install --upgrade pip
           pip install firebase-admin
@@ -394,18 +361,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 21
-
-      - name: Set up Python
+      - name: Set up Python (for test script only)
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install Python dependencies
+      - name: Install Python dependencies (for test script)
         run: |
           python -m pip install --upgrade pip
           pip install firebase-admin requests

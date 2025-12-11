@@ -17,6 +17,16 @@ inputs:
     required: false
     default: "21"
 
+  python-version:
+    description: "Python version to setup for Python Functions. Set to 'none' to skip Python setup. Set to 'auto' to auto-detect and install Python 3.12 if needed."
+    required: false
+    default: "auto"
+
+  setup-uv:
+    description: "Whether to setup uv (fast Python package manager). Recommended for Python Functions."
+    required: false
+    default: "true"
+
   project-id:
     description: "Firebase project ID for emulator"
     required: false
@@ -46,6 +56,11 @@ inputs:
     description: "Skip health check verification (not recommended)"
     required: false
     default: "false"
+
+  cache-key-suffix:
+    description: "Additional suffix for cache key (e.g., version number). Useful for cache invalidation."
+    required: false
+    default: ""
 
 outputs:
   service-status:
@@ -108,6 +123,97 @@ runs:
         $stepEnd = Get-Date
         $elapsed = ($stepEnd - $stepStart).TotalSeconds
         Write-Host "[TIMING] Step Duration: $($elapsed.ToString('F3'))s" -ForegroundColor Magenta
+
+    - name: Setup Python
+      if: inputs.python-version != 'none'
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version == 'auto' && '3.12' || inputs.python-version }}
+
+    - name: Setup uv (Fast Python Package Manager)
+      if: inputs.setup-uv == 'true' && inputs.python-version != 'none'
+      uses: astral-sh/setup-uv@v7
+      with:
+        enable-cache: true
+
+    - name: Detect Function Type and Setup Node.js if Needed
+      id: detect-functions
+      shell: pwsh
+      run: |
+        $stepStart = Get-Date
+        Write-Host "[TIMING] Step Start: $($stepStart.ToString('HH:mm:ss.fff'))" -ForegroundColor Magenta
+
+        $workDir = "${{ inputs.working-directory }}"
+        $configPath = "${{ inputs.firebase-config-path }}"
+        
+        # Parse firebase.json to find functions source directory
+        $functionsDir = Join-Path $workDir "functions"  # default
+        $firebaseJsonPath = Join-Path $workDir $configPath
+        
+        if (Test-Path $firebaseJsonPath) {
+          try {
+            $firebaseJson = Get-Content $firebaseJsonPath -Raw | ConvertFrom-Json
+            
+            # Check if functions is defined
+            if ($firebaseJson.functions) {
+              # Handle both object (single codebase) and array (multiple codebases)
+              if ($firebaseJson.functions -is [array]) {
+                # Multiple codebases - use the first one
+                $functionsSource = $firebaseJson.functions[0].source
+              } else {
+                # Single codebase object
+                $functionsSource = $firebaseJson.functions.source
+              }
+              
+              if ($functionsSource) {
+                $functionsDir = Join-Path $workDir $functionsSource
+              }
+            }
+          } catch {
+            Write-Host "[WARN] Failed to parse firebase.json" -ForegroundColor Yellow
+          }
+        }
+        
+        # Check for Node.js or Python functions
+        $packageJsonPath = Join-Path $functionsDir "package.json"
+        $requirementsPath = Join-Path $functionsDir "requirements.txt"
+        
+        $needsNode = Test-Path $packageJsonPath
+        $needsPython = Test-Path $requirementsPath
+        
+        echo "needs_node=$($needsNode.ToString().ToLower())" >> $env:GITHUB_OUTPUT
+        echo "needs_python=$($needsPython.ToString().ToLower())" >> $env:GITHUB_OUTPUT
+        echo "functions_dir=$functionsDir" >> $env:GITHUB_ENV
+        
+        if ($needsNode) {
+          Write-Host "[INFO] Detected Node.js functions (package.json found)" -ForegroundColor Cyan
+        }
+        if ($needsPython) {
+          Write-Host "[INFO] Detected Python functions (requirements.txt found)" -ForegroundColor Cyan
+        }
+        if (-not $needsNode -and -not $needsPython) {
+          Write-Host "[INFO] No functions detected" -ForegroundColor Gray
+        }
+
+        $stepEnd = Get-Date
+        $elapsed = ($stepEnd - $stepStart).TotalSeconds
+        Write-Host "[TIMING] Step Duration: $($elapsed.ToString('F3'))s" -ForegroundColor Magenta
+
+    - name: Setup Node.js for Functions
+      if: steps.detect-functions.outputs.needs_node == 'true'
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Cache Firebase Emulator Binaries
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~\.cache\firebase\emulators
+          ~\AppData\Local\firebase\emulators
+        key: ${{ runner.os }}-firebase-emulators-${{ hashFiles(format('{0}/{1}', inputs.working-directory, inputs.firebase-config-path)) }}-${{ inputs.cache-key-suffix }}
+        restore-keys: |
+          ${{ runner.os }}-firebase-emulators-
 
     - name: Setup Firebase Binary Directory
       shell: pwsh
