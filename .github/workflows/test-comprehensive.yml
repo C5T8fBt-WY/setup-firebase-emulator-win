@@ -56,11 +56,22 @@ jobs:
       - name: Cleanup Firebase Emulators
         if: always()
         run: |
-          $service = Get-Service -Name FirebaseEmulator -ErrorAction SilentlyContinue
+          # Reconstruct the service name (same logic as action)
+          $runId = $env:GITHUB_RUN_ID
+          $jobId = $env:GITHUB_JOB
+          if ($runId -and $jobId) {
+            $serviceName = "FirebaseEmulator-$runId-$jobId"
+          } else {
+            $serviceName = "FirebaseEmulator"
+          }
+
+          $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
           if ($service) {
-            nssm stop FirebaseEmulator
-            nssm remove FirebaseEmulator confirm
-            Write-Host "[OK] Service stopped and removed" -ForegroundColor Green
+            nssm stop $serviceName
+            nssm remove $serviceName confirm
+            Write-Host "[OK] Service '$serviceName' stopped and removed" -ForegroundColor Green
+          } else {
+            Write-Host "[INFO] Service '$serviceName' not found" -ForegroundColor Yellow
           }
         shell: pwsh
 
@@ -147,11 +158,22 @@ jobs:
       - name: Cleanup Firebase Emulators
         if: always()
         run: |
-          $service = Get-Service -Name FirebaseEmulator -ErrorAction SilentlyContinue
+          # Reconstruct the service name (same logic as action)
+          $runId = $env:GITHUB_RUN_ID
+          $jobId = $env:GITHUB_JOB
+          if ($runId -and $jobId) {
+            $serviceName = "FirebaseEmulator-$runId-$jobId"
+          } else {
+            $serviceName = "FirebaseEmulator"
+          }
+
+          $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
           if ($service) {
-            nssm stop FirebaseEmulator
-            nssm remove FirebaseEmulator confirm
-            Write-Host "[OK] Service stopped and removed" -ForegroundColor Green
+            nssm stop $serviceName
+            nssm remove $serviceName confirm
+            Write-Host "[OK] Service '$serviceName' stopped and removed" -ForegroundColor Green
+          } else {
+            Write-Host "[INFO] Service '$serviceName' not found" -ForegroundColor Yellow
           }
         shell: pwsh
 
@@ -215,11 +237,22 @@ jobs:
       - name: Cleanup Firebase Emulators
         if: always()
         run: |
-          $service = Get-Service -Name FirebaseEmulator -ErrorAction SilentlyContinue
+          # Reconstruct the service name (same logic as action)
+          $runId = $env:GITHUB_RUN_ID
+          $jobId = $env:GITHUB_JOB
+          if ($runId -and $jobId) {
+            $serviceName = "FirebaseEmulator-$runId-$jobId"
+          } else {
+            $serviceName = "FirebaseEmulator"
+          }
+
+          $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
           if ($service) {
-            nssm stop FirebaseEmulator
-            nssm remove FirebaseEmulator confirm
-            Write-Host "[OK] Service stopped and removed" -ForegroundColor Green
+            nssm stop $serviceName
+            nssm remove $serviceName confirm
+            Write-Host "[OK] Service '$serviceName' stopped and removed" -ForegroundColor Green
+          } else {
+            Write-Host "[INFO] Service '$serviceName' not found" -ForegroundColor Yellow
           }
         shell: pwsh
 
@@ -283,11 +316,22 @@ jobs:
       - name: Cleanup Firebase Emulators
         if: always()
         run: |
-          $service = Get-Service -Name FirebaseEmulator -ErrorAction SilentlyContinue
+          # Reconstruct the service name (same logic as action)
+          $runId = $env:GITHUB_RUN_ID
+          $jobId = $env:GITHUB_JOB
+          if ($runId -and $jobId) {
+            $serviceName = "FirebaseEmulator-$runId-$jobId"
+          } else {
+            $serviceName = "FirebaseEmulator"
+          }
+
+          $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
           if ($service) {
-            nssm stop FirebaseEmulator
-            nssm remove FirebaseEmulator confirm
-            Write-Host "[OK] Service stopped and removed" -ForegroundColor Green
+            nssm stop $serviceName
+            nssm remove $serviceName confirm
+            Write-Host "[OK] Service '$serviceName' stopped and removed" -ForegroundColor Green
+          } else {
+            Write-Host "[INFO] Service '$serviceName' not found" -ForegroundColor Yellow
           }
         shell: pwsh
 
@@ -345,11 +389,22 @@ jobs:
       - name: Cleanup Firebase Emulators
         if: always()
         run: |
-          $service = Get-Service -Name FirebaseEmulator -ErrorAction SilentlyContinue
+          # Reconstruct the service name (same logic as action)
+          $runId = $env:GITHUB_RUN_ID
+          $jobId = $env:GITHUB_JOB
+          if ($runId -and $jobId) {
+            $serviceName = "FirebaseEmulator-$runId-$jobId"
+          } else {
+            $serviceName = "FirebaseEmulator"
+          }
+
+          $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
           if ($service) {
-            nssm stop FirebaseEmulator
-            nssm remove FirebaseEmulator confirm
-            Write-Host "[OK] Service stopped and removed" -ForegroundColor Green
+            nssm stop $serviceName
+            nssm remove $serviceName confirm
+            Write-Host "[OK] Service '$serviceName' stopped and removed" -ForegroundColor Green
+          } else {
+            Write-Host "[INFO] Service '$serviceName' not found" -ForegroundColor Yellow
           }
         shell: pwsh
 
@@ -398,11 +453,22 @@ jobs:
       - name: Cleanup Firebase Emulators
         if: always()
         run: |
-          $service = Get-Service -Name FirebaseEmulator -ErrorAction SilentlyContinue
+          # Reconstruct the service name (same logic as action)
+          $runId = $env:GITHUB_RUN_ID
+          $jobId = $env:GITHUB_JOB
+          if ($runId -and $jobId) {
+            $serviceName = "FirebaseEmulator-$runId-$jobId"
+          } else {
+            $serviceName = "FirebaseEmulator"
+          }
+
+          $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
           if ($service) {
-            nssm stop FirebaseEmulator
-            nssm remove FirebaseEmulator confirm
-            Write-Host "[OK] Service stopped and removed" -ForegroundColor Green
+            nssm stop $serviceName
+            nssm remove $serviceName confirm
+            Write-Host "[OK] Service '$serviceName' stopped and removed" -ForegroundColor Green
+          } else {
+            Write-Host "[INFO] Service '$serviceName' not found" -ForegroundColor Yellow
           }
         shell: pwsh
 
