@@ -188,13 +188,13 @@ runs:
         Write-Host "[TIMING] Step Duration: $($elapsed.ToString('F3'))s" -ForegroundColor Magenta
 
     - name: Setup Python for Functions
-      if: steps.detect-functions.outputs.needs_python == 'true' && inputs.python-version != 'none'
+      if: steps.detect-functions.outputs.needs_python == 'true' && inputs.python-version != 'none' && inputs.python-version != 'auto'
       uses: actions/setup-python@v5
       with:
-        python-version: ${{ inputs.python-version == 'auto' && '3.12' || inputs.python-version }}
+        python-version: ${{ inputs.python-version }}
 
     - name: Setup uv (Fast Python Package Manager)
-      if: steps.detect-functions.outputs.needs_python == 'true' && inputs.setup-uv == 'true' && inputs.python-version != 'none'
+      if: steps.detect-functions.outputs.needs_python == 'true' && inputs.setup-uv == 'true' && inputs.python-version != 'none' && inputs.python-version != 'auto'
       uses: astral-sh/setup-uv@v7
       with:
         enable-cache: true
