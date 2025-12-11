@@ -176,11 +176,11 @@ runs:
         Write-Host "[TIMING] Step Start: $($stepStart.ToString('HH:mm:ss.fff'))" -ForegroundColor Magenta
 
         $workDir = "${{ inputs.working-directory }}"
-        $configName = "${{ inputs.config-name }}"
+        $configPath = "${{ inputs.firebase-config-path }}"
         
         # Parse firebase.json to find functions source directory
         $functionsDir = Join-Path $workDir "functions"  # default
-        $firebaseJsonPath = Join-Path $workDir $configName
+        $firebaseJsonPath = Join-Path $workDir $configPath
         
         if (Test-Path $firebaseJsonPath) {
           try {
@@ -199,11 +199,11 @@ runs:
               
               if ($functionsSource) {
                 $functionsDir = Join-Path $workDir $functionsSource
-                Write-Host "[INFO] Functions directory from $configName`: $functionsDir" -ForegroundColor Cyan
+                Write-Host "[INFO] Functions directory from $configPath`: $functionsDir" -ForegroundColor Cyan
               }
             }
           } catch {
-            Write-Host "[WARN] Failed to parse $configName, using default 'functions' directory" -ForegroundColor Yellow
+            Write-Host "[WARN] Failed to parse $configPath, using default 'functions' directory" -ForegroundColor Yellow
           }
         }
         
