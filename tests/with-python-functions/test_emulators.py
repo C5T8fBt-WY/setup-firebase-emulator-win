@@ -185,9 +185,9 @@ def test_auth_and_firestore_integration():
         id_token = token_response.json()['idToken']
         print(f"  Got ID token (length: {len(id_token)})")
 
-        # Step 5: Call get_account_info function with auth token
-        print("\n[TEST] Calling get_account_info function with auth...")
-        function_url = "http://127.0.0.1:5001/demo-python-functions/us-central1/get_account_info"
+        # Step 5: Call getAccountInfo function with auth token (EXACT name as StA2BLE-Cloud)
+        print("\n[TEST] Calling getAccountInfo function with auth...")
+        function_url = "http://127.0.0.1:5001/demo-python-functions/us-central1/getAccountInfo"
 
         function_response = requests.post(function_url, json={"data": {
             "accountId": account_id

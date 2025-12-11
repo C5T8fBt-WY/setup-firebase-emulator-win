@@ -80,10 +80,11 @@ def debug_env(req: https_fn.Request) -> https_fn.Response:
 
 
 @https_fn.on_call()
-def get_account_info(req: https_fn.CallableRequest):
+def getAccountInfo(req: https_fn.CallableRequest):
     """
     Test function that mimics StA2BLE-Cloud's getAccountInfo.
     Requires auth and reads from Firestore.
+    Uses EXACT same function name as StA2BLE-Cloud (camelCase).
     """
     import traceback
     import json
@@ -125,6 +126,6 @@ def get_account_info(req: https_fn.CallableRequest):
         raise
     except Exception as e:
         error_trace = traceback.format_exc()
-        print(f"[get_account_info] ERROR: {error_trace}")
+        print(f"[getAccountInfo] ERROR: {error_trace}")
         raise https_fn.HttpsError(code=https_fn.FunctionsErrorCode.INTERNAL,
                                   message=f"Internal error: {str(e)}")
