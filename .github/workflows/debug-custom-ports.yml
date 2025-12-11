@@ -36,6 +36,7 @@ jobs:
         with:
           working-directory: tests/sta2ble-custom-ports
           project-id: demo-sta2ble-ports
+          java-version: 'none'
           wait-time: 120
       
       - name: Check which ports are actually listening
