@@ -7,16 +7,30 @@ A GitHub Action that sets up the Firebase Emulator Suite as a **background Windo
 
 ## Features
 
-- **Reliable Service Management**: Uses Windows Service for stable background process execution
-- **Standalone Binary**: Uses Firebase CLI standalone binary (no Node.js dependency)
-- **Automatic Dependency Setup**: Handles Java installation automatically
+- **Zero-Configuration Setup**: Automatically detects and installs all prerequisites (Java, Node.js, Python, uv)
+- **Intelligent Function Detection**: Auto-detects Node.js or Python functions and sets up the right environment
+- **Built-in Caching**: Firebase Emulator binaries cached automatically for faster builds
+- **Reliable Service Management**: Uses Windows Service (NSSM) for stable background process execution
+- **Standalone Binary**: Uses Firebase CLI standalone binary (no Node.js dependency for CLI)
+- **Python Functions Support**: Full support for Python 3.10+ Firebase Functions with automatic venv creation
 - **Health Checks**: Comprehensive port and HTTP response verification
 - **Flexible Configuration**: Customize versions, emulators, and wait times
 - **Detailed Diagnostics**: Health check summary with port status table
 
+## Prerequisites
+
+**None!** The action handles all setup automatically:
+- ✅ Java 21 (required for Firebase Emulators)
+- ✅ Node.js 20 (auto-installed if Node.js functions detected)
+- ✅ Python 3.12 + uv (auto-installed if Python functions detected)
+- ✅ Firebase CLI (standalone binary)
+- ✅ NSSM (Windows Service Manager)
+
+Callers only need to install their own test dependencies (e.g., `firebase-admin`, `requests`, `pytest`).
+
 ## Quick Start
 
-### Basic Usage
+### Minimal Example (All Auto-Detected)
 
 ```yaml
 steps:
@@ -27,78 +41,66 @@ steps:
     with:
       project-id: 'demo-project'
       emulators: 'auth,firestore,functions'
+      
+  # The action automatically:
+  # - Installs Java 21
+  # - Detects your functions type (Node.js or Python)
+  # - Installs Node.js 20 (if package.json found in functions/)
+  # - Installs Python 3.12 + uv (if requirements.txt found in functions/)
+  # - Installs function dependencies (npm install or uv pip install)
+  # - Caches Firebase Emulator binaries
 
   - name: Run Tests
-    run: npm test
+    run: pytest tests/  # or npm test, dotnet test, etc.
 ```
 
-### Complete Example
+### Python Functions Example
 
 ```yaml
-name: Firebase Tests
-
-on: [push, pull_request]
-
 jobs:
   test:
     runs-on: windows-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
+      # Install dependencies for your test scripts (not for functions)
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install test dependencies
+        run: pip install firebase-admin pytest requests
+        
       - name: Setup Firebase Emulator
         uses: C5T8fBt-WY/setup-firebase-emulator-win@v1
         with:
-          firebase-tools-version: '13.24.1'
-          java-version: '17'
-          project-id: 'my-project'
-          emulators: 'auth,firestore,storage,functions'
-          wait-time: '60'
+          project-id: 'demo-project'
+          # Python 3.12 + uv automatically installed for functions/
+          # requirements.txt automatically installed into venv/
+          
+      - name: Run Tests
+        run: pytest tests/
+```
 
+### Node.js Functions Example
+
+```yaml
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Firebase Emulator
+        uses: C5T8fBt-WY/setup-firebase-emulator-win@v1
+        with:
+          project-id: 'demo-project'
+          # Node.js 20 automatically installed
+          # npm install automatically runs in functions/
+          
       - name: Run Tests
         run: npm test
-
-      - name: Cleanup
-        if: always()
-        run: |
-          nssm stop FirebaseEmulator
-          nssm remove FirebaseEmulator confirm
-        shell: pwsh
 ```
-
-### Using Existing Java
-
-If you've already set up Java in previous steps:
-
-```yaml
-steps:
-  - uses: actions/checkout@v4
-
-  - name: Setup Java
-    uses: actions/setup-java@v4
-    with:
-      distribution: 'temurin'
-      java-version: '17'
-
-  - name: Setup Firebase Emulator
-    uses: C5T8fBt-WY/setup-firebase-emulator-win@v1
-    with:
-      java-version: 'none'  # Skip Java setup
-      project-id: 'demo-project'
-```
-
-### Custom Working Directory
-
-If your Firebase configuration files are in a subdirectory:
-
-```yaml
-steps:
-  - uses: actions/checkout@v4
-
-  - name: Setup Firebase Emulator
-    uses: C5T8fBt-WY/setup-firebase-emulator-win@v1
-    with:
       working-directory: './my-firebase-app'
       project-id: 'my-project'
 ```
@@ -179,14 +181,29 @@ os.environ['FIREBASE_STORAGE_EMULATOR_HOST'] = '127.0.0.1:9299'
 
 | Input                    | Description                                                                                   | Required | Default           |
 | ------------------------ | --------------------------------------------------------------------------------------------- | -------- | ----------------- |
-| `firebase-tools-version` | Firebase Tools version to install                                                             | No       | `13.24.1`         |
-| `java-version`           | Java version to setup (Temurin). Set to `none` to skip.                                       | No       | `17`              |
+| `firebase-tools-version` | Firebase Tools version (always uses latest from firebase.tools for reliability)              | No       | `latest`          |
+| `java-version`           | Java version to setup (Temurin). Set to `none` to skip.                                      | No       | `21`              |
+| `python-version`         | Python version for Python Functions. Set to `none` to skip, `auto` to auto-detect.           | No       | `auto`            |
+| `setup-uv`               | Whether to setup uv (fast Python package manager). Recommended for Python Functions.         | No       | `true`            |
 | `project-id`             | Firebase project ID for emulator                                                              | No       | `demo-project`    |
-| `firebase-config-path`   | Path to firebase.json (absolute, workspace-relative with `./`, or working-directory-relative) | No       | `./firebase.json` |
+| `firebase-config-path`   | Path to firebase.json (absolute, workspace-relative with `./`, or working-directory-relative) | No       | `firebase.json`   |
 | `working-directory`      | Working directory containing firebase.json and related files (rules, functions/, etc.)        | No       | `.`               |
 | `emulators`              | Comma-separated list of emulators (e.g., `auth,firestore`). Empty = all from `firebase.json`  | No       | `""` (all)        |
-| `wait-time`              | Seconds to wait after starting service before health checks                                   | No       | `60`              |
+| `wait-time`              | Seconds to wait after starting service before health checks                                   | No       | `120`             |
 | `skip-health-check`      | Skip health check verification (not recommended)                                              | No       | `false`           |
+| `cache-key-suffix`       | Additional suffix for cache key (e.g., version number) for cache invalidation                | No       | `""`              |
+
+### Auto-Detection Features
+
+- **Node.js Functions**: If `functions/package.json` exists, Node.js 20 is automatically installed and `npm install` runs
+- **Python Functions**: If `functions/requirements.txt` exists, Python 3.12 + uv are automatically installed and dependencies are installed into `venv/`
+- **Firebase Emulator Binaries**: Automatically cached based on `firebase.json` hash
+
+### Python Version Options
+
+- `auto` (default): Auto-detects and installs Python 3.12 if needed for Python Functions
+- `3.10`, `3.11`, `3.12`, `3.13`: Specific Python version to install
+- `none`: Skip Python setup entirely
 
 ### Available Emulators
 
