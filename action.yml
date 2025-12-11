@@ -575,9 +575,15 @@ runs:
 
         Write-Host "Checking Emulator Hub at port $hubPort..." -ForegroundColor Cyan
         Write-Host ""
+        
+        # Add debug - test port connectivity before HTTP request
+        Write-Host "[DEBUG] Testing Hub port connectivity..." -ForegroundColor Yellow
+        $hubPortOpen = Test-NetConnection -ComputerName 127.0.0.1 -Port $hubPort -InformationLevel Quiet -WarningAction SilentlyContinue
+        Write-Host "[DEBUG] Port $hubPort is $(if ($hubPortOpen) { 'OPEN' } else { 'CLOSED' })" -ForegroundColor $(if ($hubPortOpen) { 'Green' } else { 'Red' })
 
         # Query Hub endpoint
         try {
+          Write-Host "[DEBUG] Attempting HTTP request to Hub..." -ForegroundColor Yellow
           $hubResponse = Invoke-RestMethod -Uri "http://127.0.0.1:$hubPort/emulators" -TimeoutSec 5 -UseBasicParsing
           Write-Host "[OK] Emulator Hub is responding" -ForegroundColor Green
           Write-Host ""
