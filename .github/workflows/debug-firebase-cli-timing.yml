@@ -172,4 +172,4 @@ jobs:
           Write-Host "      ~/.firebase"
           Write-Host "      ~/.config/firebase"
           Write-Host "      ~/AppData/Local/firebase"
-          Write-Host "    key: \`${{ runner.os }}-firebase-cli-runtime-\`${{ inputs.firebase-tools-version }}"
+          Write-Host '    key: ${{ runner.os }}-firebase-cli-runtime-${{ inputs.firebase-tools-version }}'
