@@ -124,18 +124,6 @@ runs:
         $elapsed = ($stepEnd - $stepStart).TotalSeconds
         Write-Host "[TIMING] Step Duration: $($elapsed.ToString('F3'))s" -ForegroundColor Magenta
 
-    - name: Setup Python
-      if: inputs.python-version != 'none'
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ inputs.python-version == 'auto' && '3.12' || inputs.python-version }}
-
-    - name: Setup uv (Fast Python Package Manager)
-      if: inputs.setup-uv == 'true' && inputs.python-version != 'none'
-      uses: astral-sh/setup-uv@v7
-      with:
-        enable-cache: true
-
     - name: Detect Function Type and Setup Node.js if Needed
       id: detect-functions
       shell: pwsh
@@ -198,6 +186,18 @@ runs:
         $stepEnd = Get-Date
         $elapsed = ($stepEnd - $stepStart).TotalSeconds
         Write-Host "[TIMING] Step Duration: $($elapsed.ToString('F3'))s" -ForegroundColor Magenta
+
+    - name: Setup Python for Functions
+      if: steps.detect-functions.outputs.needs_python == 'true' && inputs.python-version != 'none'
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version == 'auto' && '3.12' || inputs.python-version }}
+
+    - name: Setup uv (Fast Python Package Manager)
+      if: steps.detect-functions.outputs.needs_python == 'true' && inputs.setup-uv == 'true' && inputs.python-version != 'none'
+      uses: astral-sh/setup-uv@v7
+      with:
+        enable-cache: true
 
     - name: Setup Node.js for Functions
       if: steps.detect-functions.outputs.needs_node == 'true'
