@@ -672,6 +672,10 @@ runs:
               $actualWaitTime = ($checkTime - $stepStart).TotalSeconds
               Write-Host "[SUCCESS] All emulators are ready!" -ForegroundColor Green
               Write-Host "[TIMING] Emulators became ready in $($actualWaitTime.ToString('F3'))s" -ForegroundColor Magenta
+              
+              # Give emulators additional time to fully stabilize before health check
+              Write-Host "[INFO] Waiting 3 seconds for emulators to fully stabilize..." -ForegroundColor Cyan
+              Start-Sleep -Seconds 3
               break
             }
           } catch {
