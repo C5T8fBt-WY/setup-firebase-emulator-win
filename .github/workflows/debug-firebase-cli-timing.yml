@@ -1,0 +1,177 @@
+name: Debug Firebase CLI Timing
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug-timing:
+    name: Firebase CLI Timing Analysis
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Firebase Binary Directory
+        shell: pwsh
+        run: |
+          $binaryPath = Join-Path $HOME ".firebase-binary"
+          echo "FIREBASE_BINARY_PATH=$binaryPath" >> $env:GITHUB_ENV
+          New-Item -ItemType Directory -Force -Path $binaryPath | Out-Null
+          Write-Host "Binary path: $binaryPath"
+
+      - name: Download Firebase CLI
+        shell: pwsh
+        run: |
+          $start = Get-Date
+          Write-Host "Downloading Firebase CLI..."
+          Invoke-WebRequest -Uri "https://firebase.tools/bin/win/latest" -OutFile "$env:FIREBASE_BINARY_PATH\firebase.exe" -UseBasicParsing
+          $downloadTime = ((Get-Date) - $start).TotalSeconds
+          $fileSize = (Get-Item "$env:FIREBASE_BINARY_PATH\firebase.exe").Length / 1MB
+          Write-Host "Download completed in $($downloadTime.ToString('F2'))s ($($fileSize.ToString('F2')) MB)"
+
+      - name: Add to PATH
+        shell: pwsh
+        run: |
+          echo "$env:FIREBASE_BINARY_PATH" >> $env:GITHUB_PATH
+
+      - name: First Run - firebase --version
+        shell: pwsh
+        run: |
+          Write-Host "First run of firebase --version..."
+          $start = Get-Date
+          $version = firebase --version
+          $firstRunTime = ((Get-Date) - $start).TotalSeconds
+          Write-Host "First run completed in $($firstRunTime.ToString('F2'))s"
+          Write-Host "Version: $version"
+          
+      - name: Search for Firebase Cache Directories
+        shell: pwsh
+        run: |
+          Write-Host "Searching for Firebase cache/config directories..."
+          
+          $possiblePaths = @(
+            "$env:USERPROFILE\.firebase"
+            "$env:USERPROFILE\.config\firebase"
+            "$env:LOCALAPPDATA\firebase"
+            "$env:APPDATA\firebase"
+            "$env:TEMP\firebase"
+            "$env:ProgramData\firebase"
+          )
+          
+          foreach ($path in $possiblePaths) {
+            if (Test-Path $path) {
+              Write-Host "[FOUND] $path" -ForegroundColor Green
+              
+              # Show directory size and contents
+              $size = (Get-ChildItem -Path $path -Recurse -File -ErrorAction SilentlyContinue | 
+                Measure-Object -Property Length -Sum).Sum / 1MB
+              Write-Host "  Size: $($size.ToString('F2')) MB"
+              
+              Write-Host "  Contents:"
+              Get-ChildItem -Path $path -Recurse | 
+                Select-Object FullName, Length, LastWriteTime |
+                Format-Table -AutoSize | Out-String | ForEach-Object { Write-Host $_ }
+            } else {
+              Write-Host "[NOT FOUND] $path" -ForegroundColor DarkGray
+            }
+          }
+          
+          # Search for any firebase-related files in common cache locations
+          Write-Host "`nSearching for firebase-related files..."
+          $searchPaths = @($env:LOCALAPPDATA, $env:APPDATA, $env:USERPROFILE)
+          
+          foreach ($searchPath in $searchPaths) {
+            Write-Host "`nSearching in: $searchPath"
+            Get-ChildItem -Path $searchPath -Recurse -Filter "*firebase*" -ErrorAction SilentlyContinue |
+              Where-Object { $_.PSIsContainer } |
+              Select-Object -First 10 |
+              ForEach-Object {
+                Write-Host "  [DIR] $($_.FullName)" -ForegroundColor Cyan
+                $dirSize = (Get-ChildItem -Path $_.FullName -Recurse -File -ErrorAction SilentlyContinue | 
+                  Measure-Object -Property Length -Sum).Sum / 1MB
+                Write-Host "    Size: $($dirSize.ToString('F2')) MB"
+              }
+          }
+
+      - name: Second Run - firebase --version
+        shell: pwsh
+        run: |
+          Write-Host "Second run of firebase --version..."
+          $start = Get-Date
+          $version = firebase --version
+          $secondRunTime = ((Get-Date) - $start).TotalSeconds
+          Write-Host "Second run completed in $($secondRunTime.ToString('F2'))s"
+          Write-Host "Version: $version"
+
+      - name: Test firebase emulators:exec
+        shell: pwsh
+        run: |
+          Write-Host "Testing 'firebase emulators:exec' to see cache behavior..."
+          $start = Get-Date
+          
+          # Create minimal firebase.json
+          @{
+            emulators = @{
+              auth = @{ port = 9099 }
+              hub = @{ port = 4400 }
+            }
+          } | ConvertTo-Json -Depth 10 | Out-File -FilePath firebase.json -Encoding utf8
+          
+          Write-Host "Running: firebase setup:emulators:firestore --help"
+          firebase setup:emulators:firestore --help
+          
+          $execTime = ((Get-Date) - $start).TotalSeconds
+          Write-Host "Command completed in $($execTime.ToString('F2'))s"
+
+      - name: Re-check Cache Directories After emulators command
+        shell: pwsh
+        run: |
+          Write-Host "Checking cache directories after emulator command..."
+          
+          $possiblePaths = @(
+            "$env:USERPROFILE\.firebase"
+            "$env:USERPROFILE\.config\firebase"
+            "$env:LOCALAPPDATA\firebase"
+            "$env:APPDATA\firebase"
+          )
+          
+          foreach ($path in $possiblePaths) {
+            if (Test-Path $path) {
+              Write-Host "[FOUND] $path" -ForegroundColor Green
+              $size = (Get-ChildItem -Path $path -Recurse -File -ErrorAction SilentlyContinue | 
+                Measure-Object -Property Length -Sum).Sum / 1MB
+              Write-Host "  Size: $($size.ToString('F2')) MB"
+              
+              # Show what changed recently
+              Write-Host "  Recent files (last 5 minutes):"
+              Get-ChildItem -Path $path -Recurse -File -ErrorAction SilentlyContinue |
+                Where-Object { $_.LastWriteTime -gt (Get-Date).AddMinutes(-5) } |
+                Select-Object FullName, Length, LastWriteTime |
+                Format-Table -AutoSize
+            }
+          }
+
+      - name: Summary - Recommended Cache Paths
+        shell: pwsh
+        run: |
+          Write-Host "`n======================================"
+          Write-Host "SUMMARY: Recommended Cache Paths"
+          Write-Host "======================================`n"
+          
+          Write-Host "Based on the investigation, cache these paths:"
+          Write-Host "1. ~/.firebase-binary (Firebase CLI binary)"
+          Write-Host "2. ~/.firebase or ~/.config/firebase (Firebase config/runtime cache)"
+          Write-Host "3. ~/AppData/Local/firebase/emulators (Emulator JARs)"
+          Write-Host ""
+          Write-Host "Suggested cache step:"
+          Write-Host @"
+- name: Cache Firebase CLI and Runtime
+  uses: actions/cache@v4
+  with:
+    path: |
+      ~/.firebase-binary
+      ~/.firebase
+      ~/.config/firebase
+      ~/AppData/Local/firebase
+    key: `${{ runner.os }}-firebase-cli-runtime-`${{ inputs.firebase-tools-version }}
+"@
