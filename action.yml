@@ -15,7 +15,7 @@ inputs:
   java-version:
     description: "Java version to setup (Temurin). Set to 'none' to use existing environment."
     required: false
-    default: "17"
+    default: "21"
 
   project-id:
     description: "Firebase project ID for emulator"
