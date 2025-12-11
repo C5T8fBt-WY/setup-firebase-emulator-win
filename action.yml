@@ -176,7 +176,37 @@ runs:
         Write-Host "[TIMING] Step Start: $($stepStart.ToString('HH:mm:ss.fff'))" -ForegroundColor Magenta
 
         $workDir = "${{ inputs.working-directory }}"
-        $functionsDir = Join-Path $workDir "functions"
+        $configName = "${{ inputs.config-name }}"
+        
+        # Parse firebase.json to find functions source directory
+        $functionsDir = Join-Path $workDir "functions"  # default
+        $firebaseJsonPath = Join-Path $workDir $configName
+        
+        if (Test-Path $firebaseJsonPath) {
+          try {
+            $firebaseJson = Get-Content $firebaseJsonPath -Raw | ConvertFrom-Json
+            
+            # Check if functions is defined
+            if ($firebaseJson.functions) {
+              # Handle both object (single codebase) and array (multiple codebases)
+              if ($firebaseJson.functions -is [array]) {
+                # Multiple codebases - use the first one
+                $functionsSource = $firebaseJson.functions[0].source
+              } else {
+                # Single codebase object
+                $functionsSource = $firebaseJson.functions.source
+              }
+              
+              if ($functionsSource) {
+                $functionsDir = Join-Path $workDir $functionsSource
+                Write-Host "[INFO] Functions directory from $configName`: $functionsDir" -ForegroundColor Cyan
+              }
+            }
+          } catch {
+            Write-Host "[WARN] Failed to parse $configName, using default 'functions' directory" -ForegroundColor Yellow
+          }
+        }
+        
         $packageJsonPath = Join-Path $functionsDir "package.json"
         $requirementsPath = Join-Path $functionsDir "requirements.txt"
 

@@ -452,6 +452,3 @@ jobs:
           name: emulator-logs-custom-config
           path: |
             tests/custom-config-name/emulator-*.log
-
-
-
