@@ -386,7 +386,19 @@ runs:
             
             $pipStart = Get-Date
             cd $functionsDir
+            
+            # Create venv (Firebase requires this on Windows)
+            if (-not (Test-Path "venv")) {
+              Write-Host "[INFO] Creating virtual environment at venv/" -ForegroundColor Cyan
+              python -m venv venv
+            }
+            
+            # Activate venv and install dependencies
+            Write-Host "[INFO] Installing dependencies into venv/" -ForegroundColor Cyan
+            & ".\venv\Scripts\Activate.ps1"
+            python -m pip install --upgrade pip
             pip install -r requirements.txt
+            deactivate
             
             $pipEnd = Get-Date
             $pipTime = ($pipEnd - $pipStart).TotalSeconds
