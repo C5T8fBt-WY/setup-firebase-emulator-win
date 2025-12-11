@@ -133,11 +133,11 @@ runs:
 
         $workDir = "${{ inputs.working-directory }}"
         $configPath = "${{ inputs.firebase-config-path }}"
-        
+
         # Parse firebase.json to find functions source directory
         $functionsDir = Join-Path $workDir "functions"  # default
         $firebaseJsonPath = Join-Path $workDir $configPath
-        
+
         if (Test-Path $firebaseJsonPath) {
           try {
             $firebaseJson = Get-Content $firebaseJsonPath -Raw | ConvertFrom-Json
@@ -161,18 +161,18 @@ runs:
             Write-Host "[WARN] Failed to parse firebase.json" -ForegroundColor Yellow
           }
         }
-        
+
         # Check for Node.js or Python functions
         $packageJsonPath = Join-Path $functionsDir "package.json"
         $requirementsPath = Join-Path $functionsDir "requirements.txt"
-        
+
         $needsNode = Test-Path $packageJsonPath
         $needsPython = Test-Path $requirementsPath
-        
+
         echo "needs_node=$($needsNode.ToString().ToLower())" >> $env:GITHUB_OUTPUT
         echo "needs_python=$($needsPython.ToString().ToLower())" >> $env:GITHUB_OUTPUT
         echo "functions_dir=$functionsDir" >> $env:GITHUB_ENV
-        
+
         if ($needsNode) {
           Write-Host "[INFO] Detected Node.js functions (package.json found)" -ForegroundColor Cyan
         }
@@ -203,7 +203,7 @@ runs:
       if: steps.detect-functions.outputs.needs_node == 'true'
       uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: "20"
 
     - name: Cache Firebase Emulator Binaries
       uses: actions/cache@v4
@@ -283,11 +283,11 @@ runs:
 
         $workDir = "${{ inputs.working-directory }}"
         $configPath = "${{ inputs.firebase-config-path }}"
-        
+
         # Parse firebase.json to find functions source directory
         $functionsDir = Join-Path $workDir "functions"  # default
         $firebaseJsonPath = Join-Path $workDir $configPath
-        
+
         if (Test-Path $firebaseJsonPath) {
           try {
             $firebaseJson = Get-Content $firebaseJsonPath -Raw | ConvertFrom-Json
@@ -312,7 +312,7 @@ runs:
             Write-Host "[WARN] Failed to parse $configPath, using default 'functions' directory" -ForegroundColor Yellow
           }
         }
-        
+
         $packageJsonPath = Join-Path $functionsDir "package.json"
         $requirementsPath = Join-Path $functionsDir "requirements.txt"
 

@@ -179,19 +179,19 @@ os.environ['FIREBASE_STORAGE_EMULATOR_HOST'] = '127.0.0.1:9299'
 
 ## Inputs
 
-| Input                    | Description                                                                                   | Required | Default           |
-| ------------------------ | --------------------------------------------------------------------------------------------- | -------- | ----------------- |
-| `firebase-tools-version` | Firebase Tools version (always uses latest from firebase.tools for reliability)              | No       | `latest`          |
-| `java-version`           | Java version to setup (Temurin). Set to `none` to skip.                                      | No       | `21`              |
-| `python-version`         | Python version for Python Functions. Set to `none` to skip, `auto` to auto-detect.           | No       | `auto`            |
-| `setup-uv`               | Whether to setup uv (fast Python package manager). Recommended for Python Functions.         | No       | `true`            |
-| `project-id`             | Firebase project ID for emulator                                                              | No       | `demo-project`    |
-| `firebase-config-path`   | Path to firebase.json (absolute, workspace-relative with `./`, or working-directory-relative) | No       | `firebase.json`   |
-| `working-directory`      | Working directory containing firebase.json and related files (rules, functions/, etc.)        | No       | `.`               |
-| `emulators`              | Comma-separated list of emulators (e.g., `auth,firestore`). Empty = all from `firebase.json`  | No       | `""` (all)        |
-| `wait-time`              | Seconds to wait after starting service before health checks                                   | No       | `120`             |
-| `skip-health-check`      | Skip health check verification (not recommended)                                              | No       | `false`           |
-| `cache-key-suffix`       | Additional suffix for cache key (e.g., version number) for cache invalidation                | No       | `""`              |
+| Input                    | Description                                                                                   | Required | Default         |
+| ------------------------ | --------------------------------------------------------------------------------------------- | -------- | --------------- |
+| `firebase-tools-version` | Firebase Tools version (always uses latest from firebase.tools for reliability)               | No       | `latest`        |
+| `java-version`           | Java version to setup (Temurin). Set to `none` to skip.                                       | No       | `21`            |
+| `python-version`         | Python version for Python Functions. Set to `none` to skip, `auto` to auto-detect.            | No       | `auto`          |
+| `setup-uv`               | Whether to setup uv (fast Python package manager). Recommended for Python Functions.          | No       | `true`          |
+| `project-id`             | Firebase project ID for emulator                                                              | No       | `demo-project`  |
+| `firebase-config-path`   | Path to firebase.json (absolute, workspace-relative with `./`, or working-directory-relative) | No       | `firebase.json` |
+| `working-directory`      | Working directory containing firebase.json and related files (rules, functions/, etc.)        | No       | `.`             |
+| `emulators`              | Comma-separated list of emulators (e.g., `auth,firestore`). Empty = all from `firebase.json`  | No       | `""` (all)      |
+| `wait-time`              | Seconds to wait after starting service before health checks                                   | No       | `120`           |
+| `skip-health-check`      | Skip health check verification (not recommended)                                              | No       | `false`         |
+| `cache-key-suffix`       | Additional suffix for cache key (e.g., version number) for cache invalidation                 | No       | `""`            |
 
 ### Auto-Detection Features
 
