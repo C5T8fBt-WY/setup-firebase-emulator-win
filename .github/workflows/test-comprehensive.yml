@@ -251,6 +251,80 @@ jobs:
             tests/with-functions/emulator-stderr.log
           if-no-files-found: ignore
 
+  test-with-python-functions:
+    runs-on: windows-latest
+    name: Test with Python Functions
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install firebase-admin requests pytest
+        shell: pwsh
+
+      - name: Setup Firebase Emulator (With Python Functions)
+        uses: ./
+        with:
+          project-id: "demo-python-functions"
+          emulators: "auth,firestore,functions"
+          working-directory: "./tests/with-python-functions"
+          wait-time: "120"
+
+      - name: Run Tests
+        run: |
+          Write-Host "======================================" -ForegroundColor Cyan
+          Write-Host "Running Tests - With Python Functions" -ForegroundColor Cyan
+          Write-Host "======================================" -ForegroundColor Cyan
+          Write-Host ""
+
+          cd tests/with-python-functions
+          pytest test_emulators.py::test_auth_and_firestore_integration -v
+
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host ""
+            Write-Host "[SUCCESS] Python Functions test passed!" -ForegroundColor Green
+          } else {
+            Write-Host ""
+            Write-Host "[FAILED] Tests failed with exit code: $LASTEXITCODE" -ForegroundColor Red
+            exit $LASTEXITCODE
+          }
+        shell: pwsh
+
+      - name: Cleanup Firebase Emulators
+        if: always()
+        run: |
+          $service = Get-Service -Name FirebaseEmulator -ErrorAction SilentlyContinue
+          if ($service) {
+            nssm stop FirebaseEmulator
+            nssm remove FirebaseEmulator confirm
+            Write-Host "[OK] Service stopped and removed" -ForegroundColor Green
+          }
+        shell: pwsh
+
+      - name: Upload Emulator Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: emulator-logs-with-python-functions
+          path: |
+            tests/with-python-functions/emulator-stdout.log
+            tests/with-python-functions/emulator-stderr.log
+          if-no-files-found: ignore
+
   test-auth-only:
     runs-on: windows-latest
     name: Test Auth Only
