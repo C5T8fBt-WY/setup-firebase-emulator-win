@@ -9,7 +9,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Firebase Binary Directory
         shell: pwsh
@@ -165,7 +165,7 @@ jobs:
           Write-Host ""
           Write-Host "Suggested cache step:"
           Write-Host "- name: Cache Firebase CLI and Runtime"
-          Write-Host "  uses: actions/cache@v4"
+          Write-Host "  uses: actions/cache@v5"
           Write-Host "  with:"
           Write-Host "    path: |"
           Write-Host "      ~/.firebase-binary"
