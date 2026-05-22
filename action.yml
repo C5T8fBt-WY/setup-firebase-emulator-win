@@ -921,9 +921,10 @@ runs:
           }
           
           Write-Host ""
-          Write-Host "Full emulator log (first 100 lines):" -ForegroundColor Cyan
+          $stdoutLineCount = (Get-Content $stdoutLog | Measure-Object -Line).Lines
+          Write-Host "Full emulator log ($stdoutLineCount lines):" -ForegroundColor Cyan
           Write-Host "-------------------------------------" -ForegroundColor Gray
-          Get-Content $stdoutLog | Select-Object -First 100 | ForEach-Object {
+          Get-Content $stdoutLog | ForEach-Object {
             Write-Host $_ -ForegroundColor DarkGray
           }
         } else {
@@ -932,9 +933,10 @@ runs:
 
         if (Test-Path $stderrLog) {
           Write-Host ""
-          Write-Host "Emulator Stderr Log (first 100 lines):" -ForegroundColor Red
+          $stderrLineCount = (Get-Content $stderrLog | Measure-Object -Line).Lines
+          Write-Host "Emulator Stderr Log ($stderrLineCount lines):" -ForegroundColor Red
           Write-Host "-------------------------------------" -ForegroundColor Gray
-          Get-Content $stderrLog | Select-Object -First 100 | ForEach-Object {
+          Get-Content $stderrLog | ForEach-Object {
             Write-Host $_ -ForegroundColor Red
           }
         }
