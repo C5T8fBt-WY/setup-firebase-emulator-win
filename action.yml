@@ -750,7 +750,7 @@ runs:
         Write-Host "Tailing $stdoutLog for marker '$marker'..." -ForegroundColor Cyan
         while ($elapsed -lt $maxWait -and -not $loaded) {
           if (Test-Path $stdoutLog) {
-            $hit = Select-String -Path $stdoutLog -Pattern ([regex]::Escape($marker)) -SimpleMatch -ErrorAction SilentlyContinue | Select-Object -First 1
+            $hit = Select-String -Path $stdoutLog -Pattern $marker -SimpleMatch -ErrorAction SilentlyContinue | Select-Object -First 1
             if ($hit) {
               $loaded = $true
               $detected = (Get-Date) - $stepStart
