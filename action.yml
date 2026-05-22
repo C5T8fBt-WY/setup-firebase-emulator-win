@@ -719,6 +719,65 @@ runs:
         $elapsed = ($stepEnd - $stepStart).TotalSeconds
         Write-Host "[TIMING] Total Step Duration: $($elapsed.ToString('F3'))s" -ForegroundColor Magenta
 
+    # Functions emulator opens its port BEFORE the user-source triggers are
+    # discovered. Tests fired in that window get "Function X does not exist,
+    # valid functions are: " (empty registry). Wait for the firebase CLI to
+    # log "Loaded functions definitions from source:" before declaring ready.
+    - name: Wait for Functions Triggers to Load
+      if: steps.detect-functions.outputs.needs_node == 'true' || steps.detect-functions.outputs.needs_python == 'true'
+      shell: pwsh
+      run: |
+        $stepStart = Get-Date
+        Write-Host "======================================" -ForegroundColor Cyan
+        Write-Host "Waiting for Functions Triggers to Load" -ForegroundColor Cyan
+        Write-Host "======================================" -ForegroundColor Cyan
+        Write-Host "[TIMING] Step Start: $($stepStart.ToString('HH:mm:ss.fff'))" -ForegroundColor Magenta
+
+        $workDir = "${{ inputs.working-directory }}"
+        if (-not [System.IO.Path]::IsPathRooted($workDir)) {
+          $workDir = Join-Path $PWD.Path $workDir
+        }
+        $stdoutLog = Join-Path $workDir "emulator-stdout.log"
+
+        # Python triggers can be slow to load on Windows (firebase-admin import etc.).
+        # Cap independently of the hub-readiness wait-time input.
+        $maxWait = 120
+        $pollInterval = 2
+        $elapsed = 0
+        $marker = "Loaded functions definitions from source:"
+        $loaded = $false
+
+        Write-Host "Tailing $stdoutLog for marker '$marker'..." -ForegroundColor Cyan
+        while ($elapsed -lt $maxWait -and -not $loaded) {
+          if (Test-Path $stdoutLog) {
+            $hit = Select-String -Path $stdoutLog -Pattern ([regex]::Escape($marker)) -SimpleMatch -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($hit) {
+              $loaded = $true
+              $detected = (Get-Date) - $stepStart
+              Write-Host "[SUCCESS] Functions triggers loaded after $($detected.TotalSeconds.ToString('F3'))s" -ForegroundColor Green
+              Write-Host "  > $($hit.Line.Trim())" -ForegroundColor Gray
+              # Brief settle window for the emulator to register the loaded triggers.
+              Start-Sleep -Seconds 2
+              break
+            }
+          }
+          Write-Host "  Waiting... ($($elapsed)s elapsed)" -ForegroundColor Gray
+          Start-Sleep -Seconds $pollInterval
+          $elapsed += $pollInterval
+        }
+
+        if (-not $loaded) {
+          Write-Host "[WARN] Functions triggers not detected within $maxWait s. Tests may hit empty registry." -ForegroundColor Yellow
+          if (Test-Path $stdoutLog) {
+            Write-Host "[INFO] Tail of emulator-stdout.log:" -ForegroundColor Cyan
+            Get-Content $stdoutLog -Tail 40 | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
+          }
+        }
+
+        $stepEnd = Get-Date
+        $stepElapsed = ($stepEnd - $stepStart).TotalSeconds
+        Write-Host "[TIMING] Total Step Duration: $($stepElapsed.ToString('F3'))s" -ForegroundColor Magenta
+
     - name: Check Service Status
       id: check-service
       shell: pwsh
